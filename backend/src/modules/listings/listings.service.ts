@@ -2,15 +2,19 @@ import {
   Injectable,
   NotFoundException,
   ForbiddenException,
+  BadRequestException,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository, SelectQueryBuilder } from "typeorm";
+import { Repository, SelectQueryBuilder, Not, IsNull } from "typeorm";
 import { Listing } from "./listing.entity";
 import { ListingImage } from "./listing-image.entity";
 import { CreateListingDto } from "./dto/create-listing.dto";
 import { UpdateListingDto } from "./dto/update-listing.dto";
 import { SearchListingsDto } from "./dto/search-listings.dto";
 import { PaginationDto, paginate, PaginatedResult } from "../../common";
+import { ImageProcessingService } from "./image-processing.service";
+
+const MAX_IMAGES_PER_LISTING = 15;
 
 @Injectable()
 export class ListingsService {
@@ -19,6 +23,7 @@ export class ListingsService {
     private readonly listingsRepo: Repository<Listing>,
     @InjectRepository(ListingImage)
     private readonly imagesRepo: Repository<ListingImage>,
+    private readonly imageProcessing: ImageProcessingService,
   ) {}
 
   async findAll(
@@ -31,7 +36,8 @@ export class ListingsService {
       .leftJoinAndSelect("listing.images", "images")
       .leftJoinAndSelect("listing.category", "category")
       .leftJoinAndSelect("listing.user", "user")
-      .where("listing.status = :status", { status: "active" });
+      .where("listing.status = :status", { status: "active" })
+      .andWhere("images.deleted_at IS NULL");
 
     this.applyFilters(qb, filters);
 
@@ -167,18 +173,44 @@ export class ListingsService {
     const listing = await this.findById(listingId);
     this.assertOwnership(listing, userId);
 
-    if (isPrimary) {
-      await this.imagesRepo.update({ listingId }, { isPrimary: false });
+    const count = await this.imagesRepo.count({
+      where: { listingId, deletedAt: Not(IsNull()) },
+    });
+    if (count >= MAX_IMAGES_PER_LISTING) {
+      throw new BadRequestException(
+        `Maximum ${MAX_IMAGES_PER_LISTING} images per listing`,
+      );
     }
 
-    const count = await this.imagesRepo.count({ where: { listingId } });
+    if (isPrimary) {
+      await this.imagesRepo.update(
+        { listingId, deletedAt: Not(IsNull()) },
+        { isPrimary: false },
+      );
+    }
+
     const image = this.imagesRepo.create({
       listingId,
       url,
+      status: "processing",
       isPrimary: isPrimary || count === 0,
       sortOrder: count,
     });
-    return this.imagesRepo.save(image);
+    const saved = await this.imagesRepo.save(image);
+
+    try {
+      return await this.imageProcessing.processImage(saved.id);
+    } catch {
+      return saved;
+    }
+  }
+
+  async getListingImages(listingId: string): Promise<ListingImage[]> {
+    const images = await this.imagesRepo.find({
+      where: { listingId, deletedAt: IsNull() },
+      order: { sortOrder: "ASC" },
+    });
+    return images;
   }
 
   async removeImage(imageId: string, userId: string): Promise<void> {
@@ -188,7 +220,57 @@ export class ListingsService {
     });
     if (!image) throw new NotFoundException("Image not found");
     this.assertOwnership(image.listing, userId);
-    await this.imagesRepo.remove(image);
+
+    await this.imageProcessing.deleteImageFiles(image);
+    await this.imagesRepo.update(imageId, {
+      status: "deleted",
+      deletedAt: new Date(),
+    });
+  }
+
+  async setCoverImage(
+    listingId: string,
+    imageId: string,
+    userId: string,
+  ): Promise<ListingImage> {
+    const listing = await this.findById(listingId);
+    this.assertOwnership(listing, userId);
+
+    const image = await this.imagesRepo.findOne({
+      where: { id: imageId, listingId, deletedAt: Not(IsNull()) },
+    });
+    if (!image) throw new NotFoundException("Image not found");
+
+    await this.imagesRepo.update(
+      { listingId, deletedAt: Not(IsNull()) },
+      { isPrimary: false },
+    );
+    await this.imagesRepo.update(imageId, { isPrimary: true });
+    return this.imagesRepo.findOneOrFail({ where: { id: imageId } });
+  }
+
+  async reorderImages(
+    listingId: string,
+    userId: string,
+    orderedIds: string[],
+  ): Promise<void> {
+    const listing = await this.findById(listingId);
+    this.assertOwnership(listing, userId);
+
+    const images = await this.imagesRepo.find({
+      where: { listingId, deletedAt: Not(IsNull()) },
+    });
+
+    const validIds = new Set(images.map((i) => i.id));
+    if (orderedIds.some((id) => !validIds.has(id))) {
+      throw new BadRequestException("Invalid image IDs provided");
+    }
+
+    await Promise.all(
+      orderedIds.map((id, index) =>
+        this.imagesRepo.update(id, { sortOrder: index }),
+      ),
+    );
   }
 
   private assertOwnership(listing: Listing, userId: string): void {

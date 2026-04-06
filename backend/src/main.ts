@@ -4,7 +4,17 @@ import { ConfigService } from "@nestjs/config";
 import { SwaggerModule, DocumentBuilder } from "@nestjs/swagger";
 import { NestExpressApplication } from "@nestjs/platform-express";
 import { join } from "path";
+import { realpathSync } from "fs";
 import { AppModule } from "./app.module";
+
+const raw = process.env.UPLOAD_DIR || "./uploads";
+const UPLOADS_DIR = (() => {
+  try {
+    return realpathSync(raw);
+  } catch {
+    return join(process.cwd(), raw.replace(/^\.\//, ""));
+  }
+})();
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -13,7 +23,7 @@ async function bootstrap() {
   app.setGlobalPrefix("api");
 
   // Serve uploaded files statically
-  app.useStaticAssets(join(process.cwd(), "uploads"), { prefix: "/uploads" });
+  app.useStaticAssets(UPLOADS_DIR, { prefix: "/uploads" });
 
   // Enable CORS for frontend
   app.enableCors({
@@ -45,9 +55,15 @@ async function bootstrap() {
         "- `unreadCountChanged` — unread badge should be refreshed\n\n" +
         "**Socket events the client can emit:**\n" +
         "- `joinConversation { conversationId }` — subscribe to live messages\n" +
-        "- `leaveConversation { conversationId }` — unsubscribe",
+        "- `leaveConversation { conversationId }` — unsubscribe\n\n" +
+        "## Image Pipeline\n" +
+        "- `POST /api/listings/:id/images` — upload an image (multipart/form-data, auth required)\n" +
+        "- `GET /api/listings/:id/images` — list listing images\n" +
+        "- `PATCH /api/listings/:id/images/order` — reorder images `{ imageIds: string[] }`\n" +
+        "- `PATCH /api/listings/:id/images/:imageId/cover` — set cover image\n" +
+        "- `DELETE /api/listings/:id/images/:imageId` — soft-delete an image",
     )
-    .setVersion("0.2.0")
+    .setVersion("0.3.0")
     .addBearerAuth()
     .build();
   const document = SwaggerModule.createDocument(app, swaggerConfig);

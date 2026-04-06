@@ -75,8 +75,40 @@ CREATE TABLE listing_images (
     alt_text VARCHAR(255),
     sort_order INT NOT NULL DEFAULT 0,
     is_primary BOOLEAN NOT NULL DEFAULT FALSE,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    deleted_at TIMESTAMPTZ,
+    mime_type VARCHAR(50),
+    file_size_bytes BIGINT,
+    width INTEGER,
+    height INTEGER,
+    storage_key_original TEXT,
+    storage_key_thumb TEXT,
+    storage_key_medium TEXT,
+    storage_key_large TEXT,
+    status VARCHAR(20) NOT NULL DEFAULT 'processing'
+        CHECK (status IN ('uploaded', 'processing', 'ready', 'failed', 'deleted')),
+    processing_error TEXT
 );
+
+CREATE INDEX idx_listing_images_status ON listing_images (status);
+
+-- Image Processing Jobs
+CREATE TABLE image_jobs (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    image_id UUID NOT NULL REFERENCES listing_images(id) ON DELETE CASCADE,
+    job_type VARCHAR(30) NOT NULL
+        CHECK (job_type IN ('generate_variants', 'delete_files', 'reprocess')),
+    status VARCHAR(20) NOT NULL DEFAULT 'pending'
+        CHECK (status IN ('pending', 'running', 'done', 'failed')),
+    attempt_count INT NOT NULL DEFAULT 0,
+    last_error TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_image_jobs_status ON image_jobs (status);
+CREATE INDEX idx_image_jobs_image ON image_jobs (image_id);
 
 -- Favorites
 CREATE TABLE favorites (

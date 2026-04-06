@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
   getListings,
+  getImageUrl,
   Listing,
   PaginatedListings,
   ListingSearchParams,
@@ -355,9 +356,7 @@ function HomePageInner() {
 function ListingCard({ listing }: { listing: Listing }) {
   const primaryImage =
     listing.images?.find((img) => img.isPrimary) || listing.images?.[0];
-  const imageUrl = primaryImage
-    ? `${process.env.NEXT_PUBLIC_API_URL?.replace('/api', '')}${primaryImage.url}`
-    : null;
+  const imageUrl = primaryImage ? getImageUrl(primaryImage, 'thumb') : null;
 
   return (
     <Link

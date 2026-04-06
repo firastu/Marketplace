@@ -43,3 +43,6 @@ infra/docker/postgres/data/
 
 # OpenCode
 .opencode/
+
+# Ignore uploads directory (contains user-uploaded files, not source code)
+uploads/

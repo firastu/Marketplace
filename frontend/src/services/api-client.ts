@@ -5,6 +5,7 @@ type RequestOptions = {
   body?: unknown;
   headers?: Record<string, string>;
   auth?: boolean;
+  multipart?: boolean;
 };
 
 function getToken(): string | null {
@@ -16,7 +17,7 @@ export async function apiClient<T>(
   endpoint: string,
   options: RequestOptions = {},
 ): Promise<T> {
-  const { method = 'GET', body, headers = {}, auth = false } = options;
+  const { method = 'GET', body, headers = {}, auth = false, multipart = false } = options;
 
   if (auth) {
     const token = getToken();
@@ -25,14 +26,19 @@ export async function apiClient<T>(
     }
   }
 
-  const res = await fetch(`${API_URL}${endpoint}`, {
+  const fetchOptions: RequestInit = {
     method,
-    headers: {
-      'Content-Type': 'application/json',
-      ...headers,
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
+    headers: multipart
+      ? headers
+      : { 'Content-Type': 'application/json', ...headers },
+    body: multipart
+      ? (body as FormData | undefined)
+      : body
+        ? JSON.stringify(body)
+        : undefined,
+  };
+
+  const res = await fetch(`${API_URL}${endpoint}`, fetchOptions);
 
   if (!res.ok) {
     const error = await res.json().catch(() => ({ message: 'Request failed' }));
