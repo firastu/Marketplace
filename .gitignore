@@ -40,3 +40,6 @@ infra/docker/postgres/data/
 # Misc
 *.tgz
 .eslintcache
+
+# OpenCode
+.opencode/

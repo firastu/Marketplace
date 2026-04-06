@@ -1,6 +1,6 @@
-import { Module } from '@nestjs/common';
-import { UploadsController } from './uploads.controller';
-import { ListingsModule } from '../listings/listings.module';
+import { Module } from "@nestjs/common";
+import { UploadsController } from "./uploads.controller";
+import { ListingsModule } from "../listings/listings.module";
 
 @Module({
   imports: [ListingsModule],

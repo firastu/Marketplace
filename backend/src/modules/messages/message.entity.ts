@@ -5,35 +5,35 @@ import {
   CreateDateColumn,
   ManyToOne,
   JoinColumn,
-} from 'typeorm';
-import { User } from '../users/user.entity';
-import { Conversation } from './conversation.entity';
+} from "typeorm";
+import { User } from "../users/user.entity";
+import { Conversation } from "./conversation.entity";
 
-@Entity('messages')
+@Entity("messages")
 export class Message {
-  @PrimaryGeneratedColumn('uuid')
+  @PrimaryGeneratedColumn("uuid")
   id: string;
 
-  @Column({ name: 'conversation_id' })
+  @Column({ name: "conversation_id" })
   conversationId: string;
 
   @ManyToOne(() => Conversation, (conv) => conv.messages)
-  @JoinColumn({ name: 'conversation_id' })
+  @JoinColumn({ name: "conversation_id" })
   conversation: Conversation;
 
-  @Column({ name: 'sender_id' })
+  @Column({ name: "sender_id" })
   senderId: string;
 
   @ManyToOne(() => User)
-  @JoinColumn({ name: 'sender_id' })
+  @JoinColumn({ name: "sender_id" })
   sender: User;
 
-  @Column({ type: 'text' })
+  @Column({ type: "text" })
   body: string;
 
-  @Column({ name: 'is_read', default: false })
+  @Column({ name: "is_read", default: false })
   isRead: boolean;
 
-  @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
+  @CreateDateColumn({ name: "created_at", type: "timestamptz" })
   createdAt: Date;
 }

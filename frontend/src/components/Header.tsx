@@ -26,6 +26,9 @@ export default function Header() {
           <Link href="/" className="nav-link">
             Browse
           </Link>
+          <Link href="/categories" className="nav-link">
+            Categories
+          </Link>
           {user ? (
             <>
               <Link href="/listings/create" className="nav-link">
@@ -34,7 +37,11 @@ export default function Header() {
               <Link href="/listings/my" className="nav-link">
                 My Listings
               </Link>
-              <Link href="/messages" className="nav-link" style={{ position: 'relative' }}>
+              <Link
+                href="/messages"
+                className="nav-link"
+                style={{ position: 'relative' }}
+              >
                 Messages
                 {unreadCount > 0 && (
                   <span

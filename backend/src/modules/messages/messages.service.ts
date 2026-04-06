@@ -3,13 +3,13 @@ import {
   NotFoundException,
   ForbiddenException,
   BadRequestException,
-} from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Conversation } from './conversation.entity';
-import { Message } from './message.entity';
-import { Listing } from '../listings/listing.entity';
-import { MessagesGateway } from './messages.gateway';
+} from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
+import { Conversation } from "./conversation.entity";
+import { Message } from "./message.entity";
+import { Listing } from "../listings/listing.entity";
+import { MessagesGateway } from "./messages.gateway";
 
 @Injectable()
 export class MessagesService {
@@ -23,21 +23,21 @@ export class MessagesService {
     private readonly gateway: MessagesGateway,
   ) {}
 
-  async getMyConversations(userId: string): Promise<any[]> {
+  async getMyConversations(userId: string) {
     const conversations = await this.convRepo.find({
       where: [{ buyerId: userId }, { sellerId: userId }],
-      relations: ['listing', 'buyer', 'seller'],
-      order: { lastMessageAt: 'DESC' },
+      relations: ["listing", "buyer", "seller"],
+      order: { lastMessageAt: "DESC" },
     });
 
     // Attach unread count per conversation
     const results = await Promise.all(
       conversations.map(async (conv) => {
         const unreadCount = await this.msgRepo
-          .createQueryBuilder('m')
-          .where('m.conversation_id = :convId', { convId: conv.id })
-          .andWhere('m.sender_id != :userId', { userId })
-          .andWhere('m.is_read = false')
+          .createQueryBuilder("m")
+          .where("m.conversation_id = :convId", { convId: conv.id })
+          .andWhere("m.sender_id != :userId", { userId })
+          .andWhere("m.is_read = false")
           .getCount();
         return { ...conv, unreadCount };
       }),
@@ -52,7 +52,7 @@ export class MessagesService {
     const conv = await this.convRepo.findOne({
       where: { id: conversationId },
     });
-    if (!conv) throw new NotFoundException('Conversation not found');
+    if (!conv) throw new NotFoundException("Conversation not found");
     this.assertParticipant(conv, userId);
 
     // Mark unread messages as read
@@ -60,16 +60,19 @@ export class MessagesService {
       .createQueryBuilder()
       .update(Message)
       .set({ isRead: true })
-      .where('conversation_id = :conversationId AND sender_id != :userId AND is_read = false', {
-        conversationId,
-        userId,
-      })
+      .where(
+        "conversation_id = :conversationId AND sender_id != :userId AND is_read = false",
+        {
+          conversationId,
+          userId,
+        },
+      )
       .execute();
 
     return this.msgRepo.find({
       where: { conversationId },
-      relations: ['sender'],
-      order: { createdAt: 'ASC' },
+      relations: ["sender"],
+      order: { createdAt: "ASC" },
     });
   }
 
@@ -78,10 +81,12 @@ export class MessagesService {
     listingId: string,
     body: string,
   ): Promise<{ conversation: Conversation; message: Message }> {
-    const listing = await this.listingRepo.findOne({ where: { id: listingId } });
-    if (!listing) throw new NotFoundException('Listing not found');
+    const listing = await this.listingRepo.findOne({
+      where: { id: listingId },
+    });
+    if (!listing) throw new NotFoundException("Listing not found");
     if (listing.userId === buyerId) {
-      throw new BadRequestException('Cannot message yourself');
+      throw new BadRequestException("Cannot message yourself");
     }
 
     // Check if conversation already exists
@@ -111,7 +116,7 @@ export class MessagesService {
     const conv = await this.convRepo.findOne({
       where: { id: conversationId },
     });
-    if (!conv) throw new NotFoundException('Conversation not found');
+    if (!conv) throw new NotFoundException("Conversation not found");
     this.assertParticipant(conv, senderId);
 
     const message = this.msgRepo.create({
@@ -126,9 +131,11 @@ export class MessagesService {
     // Load sender relation for the WebSocket payload
     const fullMessage = await this.msgRepo.findOne({
       where: { id: saved.id },
-      relations: ['sender'],
+      relations: ["sender"],
     });
-
+    if (!fullMessage) {
+      throw new NotFoundException("Created message could not be loaded");
+    }
     // Determine recipient and emit in real time
     const recipientId =
       conv.buyerId === senderId ? conv.sellerId : conv.buyerId;
@@ -139,20 +146,17 @@ export class MessagesService {
 
   private assertParticipant(conv: Conversation, userId: string): void {
     if (conv.buyerId !== userId && conv.sellerId !== userId) {
-      throw new ForbiddenException('Not a participant of this conversation');
+      throw new ForbiddenException("Not a participant of this conversation");
     }
   }
 
   async getUnreadCount(userId: string): Promise<{ count: number }> {
     const count = await this.msgRepo
-      .createQueryBuilder('m')
-      .innerJoin('m.conversation', 'c')
-      .where(
-        '(c.buyer_id = :userId OR c.seller_id = :userId)',
-        { userId },
-      )
-      .andWhere('m.sender_id != :userId', { userId })
-      .andWhere('m.is_read = false')
+      .createQueryBuilder("m")
+      .innerJoin("m.conversation", "c")
+      .where("(c.buyer_id = :userId OR c.seller_id = :userId)", { userId })
+      .andWhere("m.sender_id != :userId", { userId })
+      .andWhere("m.is_read = false")
       .getCount();
     return { count };
   }

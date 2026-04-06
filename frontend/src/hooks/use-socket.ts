@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
-import { getUnreadCount } from '@/services/messages.service';
+import { getUnreadCount, Message } from '@/services/messages.service';
 
 let globalSocket: Socket | null = null;
 
@@ -45,7 +45,7 @@ export function disconnectSocket() {
  */
 export function useConversationSocket(
   conversationId: string | null,
-  onNewMessage: (msg: any) => void,
+  onNewMessage: (msg: Message) => void,
 ) {
   const callbackRef = useRef(onNewMessage);
   callbackRef.current = onNewMessage;
@@ -58,7 +58,7 @@ export function useConversationSocket(
 
     socket.emit('joinConversation', { conversationId });
 
-    const handler = (msg: any) => {
+    const handler = (msg: Message) => {
       callbackRef.current(msg);
     };
 
@@ -87,7 +87,7 @@ export function useInboxSocket(
     const socket = getSocket();
     if (!socket) return;
 
-    const handler = (data: any) => {
+    const handler = (data: { conversationId: string; lastMessageAt: string }) => {
       callbackRef.current(data);
     };
 

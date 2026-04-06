@@ -1,5 +1,5 @@
-import { IsUUID, IsString, MinLength } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import { IsUUID, IsString, MinLength } from "class-validator";
+import { ApiProperty } from "@nestjs/swagger";
 
 export class StartConversationDto {
   @ApiProperty()

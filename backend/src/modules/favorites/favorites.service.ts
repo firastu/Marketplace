@@ -1,7 +1,7 @@
-import { Injectable, ConflictException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Favorite } from './favorite.entity';
+import { Injectable, ConflictException } from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
+import { Favorite } from "./favorite.entity";
 
 @Injectable()
 export class FavoritesService {
@@ -14,7 +14,7 @@ export class FavoritesService {
     const existing = await this.favoritesRepo.findOne({
       where: { userId, listingId },
     });
-    if (existing) throw new ConflictException('Already in favorites');
+    if (existing) throw new ConflictException("Already in favorites");
     const fav = this.favoritesRepo.create({ userId, listingId });
     return this.favoritesRepo.save(fav);
   }
@@ -26,8 +26,8 @@ export class FavoritesService {
   async getUserFavorites(userId: string): Promise<Favorite[]> {
     return this.favoritesRepo.find({
       where: { userId },
-      relations: ['listing', 'listing.images'],
-      order: { createdAt: 'DESC' },
+      relations: ["listing", "listing.images"],
+      order: { createdAt: "DESC" },
     });
   }
 }

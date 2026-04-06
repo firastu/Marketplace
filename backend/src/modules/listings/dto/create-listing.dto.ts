@@ -8,8 +8,8 @@ import {
   MinLength,
   MaxLength,
   Min,
-} from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+} from "class-validator";
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 
 export class CreateListingDto {
   @ApiProperty()
@@ -32,14 +32,14 @@ export class CreateListingDto {
   @Min(0)
   price: number;
 
-  @ApiPropertyOptional({ default: 'EUR' })
+  @ApiPropertyOptional({ default: "EUR" })
   @IsOptional()
   @IsString()
   currency?: string;
 
-  @ApiPropertyOptional({ enum: ['new', 'like_new', 'used', 'fair', 'poor'] })
+  @ApiPropertyOptional({ enum: ["new", "like_new", "used", "fair", "poor"] })
   @IsOptional()
-  @IsIn(['new', 'like_new', 'used', 'fair', 'poor'])
+  @IsIn(["new", "like_new", "used", "fair", "poor"])
   condition?: string;
 
   @ApiPropertyOptional()

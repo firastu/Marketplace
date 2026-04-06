@@ -7,44 +7,44 @@ import {
   OneToMany,
   JoinColumn,
   Unique,
-} from 'typeorm';
-import { User } from '../users/user.entity';
-import { Listing } from '../listings/listing.entity';
-import { Message } from './message.entity';
+} from "typeorm";
+import { User } from "../users/user.entity";
+import { Listing } from "../listings/listing.entity";
+import { Message } from "./message.entity";
 
-@Entity('conversations')
-@Unique(['listingId', 'buyerId', 'sellerId'])
+@Entity("conversations")
+@Unique(["listingId", "buyerId", "sellerId"])
 export class Conversation {
-  @PrimaryGeneratedColumn('uuid')
+  @PrimaryGeneratedColumn("uuid")
   id: string;
 
-  @Column({ name: 'listing_id' })
+  @Column({ name: "listing_id" })
   listingId: string;
 
   @ManyToOne(() => Listing)
-  @JoinColumn({ name: 'listing_id' })
+  @JoinColumn({ name: "listing_id" })
   listing: Listing;
 
-  @Column({ name: 'buyer_id' })
+  @Column({ name: "buyer_id" })
   buyerId: string;
 
   @ManyToOne(() => User)
-  @JoinColumn({ name: 'buyer_id' })
+  @JoinColumn({ name: "buyer_id" })
   buyer: User;
 
-  @Column({ name: 'seller_id' })
+  @Column({ name: "seller_id" })
   sellerId: string;
 
   @ManyToOne(() => User)
-  @JoinColumn({ name: 'seller_id' })
+  @JoinColumn({ name: "seller_id" })
   seller: User;
 
-  @Column({ name: 'last_message_at', type: 'timestamptz', nullable: true })
+  @Column({ name: "last_message_at", type: "timestamptz", nullable: true })
   lastMessageAt: Date;
 
   @OneToMany(() => Message, (msg) => msg.conversation)
   messages: Message[];
 
-  @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
+  @CreateDateColumn({ name: "created_at", type: "timestamptz" })
   createdAt: Date;
 }

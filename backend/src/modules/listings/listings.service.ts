@@ -1,11 +1,16 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Listing } from './listing.entity';
-import { ListingImage } from './listing-image.entity';
-import { CreateListingDto } from './dto/create-listing.dto';
-import { UpdateListingDto } from './dto/update-listing.dto';
-import { PaginationDto, paginate, PaginatedResult } from '../../common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+} from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository, SelectQueryBuilder } from "typeorm";
+import { Listing } from "./listing.entity";
+import { ListingImage } from "./listing-image.entity";
+import { CreateListingDto } from "./dto/create-listing.dto";
+import { UpdateListingDto } from "./dto/update-listing.dto";
+import { SearchListingsDto } from "./dto/search-listings.dto";
+import { PaginationDto, paginate, PaginatedResult } from "../../common";
 
 @Injectable()
 export class ListingsService {
@@ -16,33 +21,91 @@ export class ListingsService {
     private readonly imagesRepo: Repository<ListingImage>,
   ) {}
 
-  async findAll(pagination: PaginationDto): Promise<PaginatedResult<Listing>> {
+  async findAll(
+    pagination: PaginationDto,
+    filters: SearchListingsDto,
+  ): Promise<PaginatedResult<Listing>> {
     const { page = 1, limit = 20 } = pagination;
-    const [data, total] = await this.listingsRepo.findAndCount({
-      where: { status: 'active' },
-      relations: ['images', 'category', 'user'],
-      order: { createdAt: 'DESC' },
-      skip: (page - 1) * limit,
-      take: limit,
-    });
+    const qb = this.listingsRepo
+      .createQueryBuilder("listing")
+      .leftJoinAndSelect("listing.images", "images")
+      .leftJoinAndSelect("listing.category", "category")
+      .leftJoinAndSelect("listing.user", "user")
+      .where("listing.status = :status", { status: "active" });
+
+    this.applyFilters(qb, filters);
+
+    const sortBy = filters.sortBy || "newest";
+    if (sortBy === "price_asc") {
+      qb.orderBy("listing.price", "ASC");
+    } else if (sortBy === "price_desc") {
+      qb.orderBy("listing.price", "DESC");
+    } else {
+      qb.orderBy("listing.createdAt", "DESC");
+    }
+
+    qb.skip((page - 1) * limit).take(limit);
+
+    const [data, total] = await qb.getManyAndCount();
     return paginate(data, total, page, limit);
+  }
+
+  private applyFilters(
+    qb: SelectQueryBuilder<Listing>,
+    filters: SearchListingsDto,
+  ): void {
+    if (filters.q) {
+      const term = `%${filters.q}%`;
+      qb.andWhere(
+        "(listing.title ILIKE :term OR listing.description ILIKE :term)",
+        { term },
+      );
+    }
+    if (filters.categoryId) {
+      qb.andWhere("listing.categoryId = :categoryId", {
+        categoryId: filters.categoryId,
+      });
+    }
+    if (filters.minPrice !== undefined) {
+      qb.andWhere("listing.price >= :minPrice", {
+        minPrice: filters.minPrice,
+      });
+    }
+    if (filters.maxPrice !== undefined) {
+      qb.andWhere("listing.price <= :maxPrice", {
+        maxPrice: filters.maxPrice,
+      });
+    }
+    if (filters.condition) {
+      qb.andWhere("listing.condition = :condition", {
+        condition: filters.condition,
+      });
+    }
+    if (filters.locationCity) {
+      qb.andWhere("listing.locationCity ILIKE :city", {
+        city: `%${filters.locationCity}%`,
+      });
+    }
   }
 
   async findById(id: string): Promise<Listing> {
     const listing = await this.listingsRepo.findOne({
       where: { id },
-      relations: ['images', 'category', 'user'],
+      relations: ["images", "category", "user"],
     });
-    if (!listing) throw new NotFoundException('Listing not found');
+    if (!listing) throw new NotFoundException("Listing not found");
     return listing;
   }
 
-  async findByUser(userId: string, pagination: PaginationDto): Promise<PaginatedResult<Listing>> {
+  async findByUser(
+    userId: string,
+    pagination: PaginationDto,
+  ): Promise<PaginatedResult<Listing>> {
     const { page = 1, limit = 20 } = pagination;
     const [data, total] = await this.listingsRepo.findAndCount({
       where: { userId },
-      relations: ['images', 'category'],
-      order: { createdAt: 'DESC' },
+      relations: ["images", "category"],
+      order: { createdAt: "DESC" },
       skip: (page - 1) * limit,
       take: limit,
     });
@@ -60,19 +123,29 @@ export class ListingsService {
     return this.findById(saved.id);
   }
 
-  async update(id: string, userId: string, dto: UpdateListingDto): Promise<Listing> {
+  async update(
+    id: string,
+    userId: string,
+    dto: UpdateListingDto,
+  ): Promise<Listing> {
     const listing = await this.findById(id);
     this.assertOwnership(listing, userId);
 
     if (dto.title) {
-      (dto as any).slug = this.generateSlug(dto.title);
+      (dto as UpdateListingDto & { slug?: string }).slug = this.generateSlug(
+        dto.title,
+      );
     }
 
     await this.listingsRepo.update(id, dto);
     return this.findById(id);
   }
 
-  async updateStatus(id: string, userId: string, status: string): Promise<Listing> {
+  async updateStatus(
+    id: string,
+    userId: string,
+    status: string,
+  ): Promise<Listing> {
     const listing = await this.findById(id);
     this.assertOwnership(listing, userId);
     await this.listingsRepo.update(id, { status });
@@ -85,7 +158,12 @@ export class ListingsService {
     await this.listingsRepo.remove(listing);
   }
 
-  async addImage(listingId: string, userId: string, url: string, isPrimary = false): Promise<ListingImage> {
+  async addImage(
+    listingId: string,
+    userId: string,
+    url: string,
+    isPrimary = false,
+  ): Promise<ListingImage> {
     const listing = await this.findById(listingId);
     this.assertOwnership(listing, userId);
 
@@ -106,16 +184,16 @@ export class ListingsService {
   async removeImage(imageId: string, userId: string): Promise<void> {
     const image = await this.imagesRepo.findOne({
       where: { id: imageId },
-      relations: ['listing'],
+      relations: ["listing"],
     });
-    if (!image) throw new NotFoundException('Image not found');
+    if (!image) throw new NotFoundException("Image not found");
     this.assertOwnership(image.listing, userId);
     await this.imagesRepo.remove(image);
   }
 
   private assertOwnership(listing: Listing, userId: string): void {
     if (listing.userId !== userId) {
-      throw new ForbiddenException('You do not own this listing');
+      throw new ForbiddenException("You do not own this listing");
     }
   }
 
@@ -123,9 +201,9 @@ export class ListingsService {
     return (
       title
         .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/(^-|-$)/g, '') +
-      '-' +
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/(^-|-$)/g, "") +
+      "-" +
       Date.now().toString(36)
     );
   }

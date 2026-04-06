@@ -6,30 +6,30 @@ import {
   ManyToOne,
   JoinColumn,
   Unique,
-} from 'typeorm';
-import { User } from '../users/user.entity';
-import { Listing } from '../listings/listing.entity';
+} from "typeorm";
+import { User } from "../users/user.entity";
+import { Listing } from "../listings/listing.entity";
 
-@Entity('favorites')
-@Unique(['userId', 'listingId'])
+@Entity("favorites")
+@Unique(["userId", "listingId"])
 export class Favorite {
-  @PrimaryGeneratedColumn('uuid')
+  @PrimaryGeneratedColumn("uuid")
   id: string;
 
-  @Column({ name: 'user_id' })
+  @Column({ name: "user_id" })
   userId: string;
 
   @ManyToOne(() => User)
-  @JoinColumn({ name: 'user_id' })
+  @JoinColumn({ name: "user_id" })
   user: User;
 
-  @Column({ name: 'listing_id' })
+  @Column({ name: "listing_id" })
   listingId: string;
 
   @ManyToOne(() => Listing)
-  @JoinColumn({ name: 'listing_id' })
+  @JoinColumn({ name: "listing_id" })
   listing: Listing;
 
-  @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
+  @CreateDateColumn({ name: "created_at", type: "timestamptz" })
   createdAt: Date;
 }

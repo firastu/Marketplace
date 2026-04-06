@@ -23,6 +23,18 @@ export interface PaginatedListings {
   meta: { total: number; page: number; limit: number; totalPages: number };
 }
 
+export interface ListingSearchParams {
+  page?: number;
+  limit?: number;
+  q?: string;
+  categoryId?: string;
+  minPrice?: number;
+  maxPrice?: number;
+  condition?: string;
+  locationCity?: string;
+  sortBy?: 'newest' | 'price_asc' | 'price_desc';
+}
+
 export interface CreateListingData {
   categoryId: string;
   title: string;
@@ -35,8 +47,18 @@ export interface CreateListingData {
   isNegotiable?: boolean;
 }
 
-export function getListings(page = 1, limit = 20): Promise<PaginatedListings> {
-  return apiClient<PaginatedListings>(`/listings?page=${page}&limit=${limit}`);
+export function getListings(params: ListingSearchParams = {}): Promise<PaginatedListings> {
+  const { page = 1, limit = 20, ...filters } = params;
+  const searchParams = new URLSearchParams({
+    page: String(page),
+    limit: String(limit),
+  });
+  for (const [key, value] of Object.entries(filters)) {
+    if (value !== undefined && value !== null && value !== '') {
+      searchParams.set(key, String(value));
+    }
+  }
+  return apiClient<PaginatedListings>(`/listings?${searchParams.toString()}`);
 }
 
 export function getListingById(id: string): Promise<Listing> {

@@ -115,15 +115,19 @@ The web app will be available at **http://localhost:3000**
 - [x] Auth (register, login)
 - [x] Users
 - [x] Categories (with subcategories)
-- [x] Listings (with images)
-- [x] Favorites
+- [x] Listings (CRUD)
+- [x] Favorites (backend)
+- [x] Messages (conversations)
+- [x] Reviews
 
 ### Phase 2 (Planned)
-- [ ] Messages (conversations)
-- [ ] Reviews
-- [ ] JWT authentication with guards
+- [ ] Listing search & filter
+- [ ] Image upload wiring (frontend)
+- [ ] Favorites UI
+- [ ] Listing edit page
+- [ ] Reviews UI
+- [ ] Reports & moderation
 - [ ] Order-ready architecture
-- [ ] Moderation support
 
 ### Future
 - [ ] Redis (cache, sessions, rate limiting)
