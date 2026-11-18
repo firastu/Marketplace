@@ -87,6 +87,9 @@ export class ListingsService {
     } else {
       qb.orderBy("listing.createdAt", "DESC");
     }
+    // Tie-breaker: without it, listings with the same price (or timestamp)
+    // can repeat or go missing between pages.
+    qb.addOrderBy("listing.id", "ASC");
 
     qb.skip((page - 1) * limit).take(limit);
 
@@ -156,14 +159,7 @@ export class ListingsService {
    */
   async findVisibleById(id: string, viewer?: Viewer): Promise<Listing> {
     const listing = await this.findById(id);
-    const isOwner = !!viewer && viewer.id === listing.userId;
-    const isStaff = !!viewer && STAFF_ROLES.includes(viewer.role);
-    const publiclyVisible =
-      PUBLIC_STATUSES.includes(listing.status) && listing.user?.isActive;
-
-    if (!publiclyVisible && !isOwner && !isStaff) {
-      throw new NotFoundException("Listing not found");
-    }
+    const { isOwner } = this.assertVisible(listing, viewer);
 
     if (!isOwner) {
       await this.listingsRepo.increment({ id }, "viewsCount", 1);
@@ -305,12 +301,7 @@ export class ListingsService {
     viewer?: Viewer,
   ): Promise<ListingImage[]> {
     // Same visibility rules as the listing itself (no view count bump).
-    const listing = await this.findById(listingId);
-    const isOwner = !!viewer && viewer.id === listing.userId;
-    const isStaff = !!viewer && STAFF_ROLES.includes(viewer.role);
-    if (!PUBLIC_STATUSES.includes(listing.status) && !isOwner && !isStaff) {
-      throw new NotFoundException("Listing not found");
-    }
+    this.assertVisible(await this.findById(listingId), viewer);
     return this.imagesRepo.find({
       where: { listingId },
       order: { sortOrder: "ASC" },
@@ -326,7 +317,10 @@ export class ListingsService {
       where: { id: imageId, listingId },
       relations: ["listing"],
     });
-    if (!image) throw new NotFoundException("Image not found");
+    // image.listing is null once the listing itself was (soft) deleted.
+    if (!image || !image.listing) {
+      throw new NotFoundException("Image not found");
+    }
     this.assertOwnership(image.listing, userId);
 
     await this.imageProcessing.deleteImageFiles(image);
@@ -391,6 +385,25 @@ export class ListingsService {
       where: { listingId },
       order: { sortOrder: "ASC" },
     });
+  }
+
+  /**
+   * Throws 404 unless the viewer may see the listing: anyone for public
+   * statuses of active sellers, otherwise only the owner and staff.
+   */
+  private assertVisible(
+    listing: Listing,
+    viewer?: Viewer,
+  ): { isOwner: boolean } {
+    const isOwner = !!viewer && viewer.id === listing.userId;
+    const isStaff = !!viewer && STAFF_ROLES.includes(viewer.role);
+    const publiclyVisible =
+      PUBLIC_STATUSES.includes(listing.status) && !!listing.user?.isActive;
+
+    if (!publiclyVisible && !isOwner && !isStaff) {
+      throw new NotFoundException("Listing not found");
+    }
+    return { isOwner };
   }
 
   private async promoteFirstImage(listingId: string): Promise<void> {

@@ -21,6 +21,15 @@ describe("Listing images", () => {
   });
   afterAll(() => t.close());
 
+  /** Where the private original is stored (not part of API responses). */
+  async function originalKey(imageId: string): Promise<string> {
+    const rows = await t.db.query(
+      `SELECT storage_key_original FROM listing_images WHERE id = $1`,
+      [imageId],
+    );
+    return rows[0].storage_key_original;
+  }
+
   it("first upload becomes the cover, later uploads are appended in order", async () => {
     const listing = await t.listing(owner);
     const a = (await t.upload(owner, listing.id, await png("#c33")).expect(201))
@@ -161,7 +170,7 @@ describe("Listing images", () => {
         .upload(owner, listing.id, await png(), "photo.html", "image/png")
         .expect(201)
     ).body;
-    expect(img.storageKeyOriginal).toMatch(/\/original\/[0-9a-f-]+\.png$/);
+    expect(await originalKey(img.id)).toMatch(/\/original\/[0-9a-f-]+\.png$/);
     const stored = filesUnder(join(uploadsDir(), listing.id));
     expect(stored.some((f) => f.endsWith(".html"))).toBe(false);
   });
@@ -182,10 +191,35 @@ describe("Listing images", () => {
         .expect(201)
     ).body;
 
-    await t
-      .http()
-      .get(`/uploads/listings/${img.storageKeyOriginal}`)
-      .expect(404);
+    // Neither the upload response nor the public listing says where the
+    // original is stored.
+    expect(img).not.toHaveProperty("storageKeyOriginal");
+    expect(img).not.toHaveProperty("processingError");
+    const detail = await t.http().get(`/api/listings/${listing.id}`);
+    expect(JSON.stringify(detail.body)).not.toContain("/original/");
+
+    const key = await originalKey(img.id);
+    expect(filesUnder(join(uploadsDir(), listing.id))).toContain(
+      join(uploadsDir(), key),
+    );
+    // The static file server decodes and normalises the path, so every
+    // spelling of it must be refused, not just the canonical one.
+    const spellings = [
+      key,
+      key.replace("/original/", "/%6Friginal/"),
+      key.replace("/original/", "/%6f%72iginal/"),
+      key.replace("/original/", "//original/"),
+      key.replace("/original/", "/./original/"),
+      key.replace("/original/", "/thumb/../original/"),
+      key.replace("/original/", "%2Foriginal/"),
+      key.replace("/original/", "/original%2F"),
+      key.replace("/original/", "/original//"),
+    ];
+    for (const spelling of spellings) {
+      const res = await t.http().get(`/uploads/listings/${spelling}`);
+      expect([spelling, res.status]).toEqual([spelling, 404]);
+    }
+    await t.http().get(`/uploads//listings/${key}`).expect(404);
 
     const thumb = await t
       .http()
@@ -222,5 +256,33 @@ describe("Listing images", () => {
       .delete(`/api/listings/${other.id}/images/${img.id}`)
       .set(...auth(owner))
       .expect(404);
+  });
+
+  it("deleting an image of an already deleted listing is a 404, not a crash", async () => {
+    const listing = await t.listing(owner);
+    const img = (await t.upload(owner, listing.id, await png()).expect(201))
+      .body;
+    await t
+      .http()
+      .delete(`/api/listings/${listing.id}`)
+      .set(...auth(owner))
+      .expect(200);
+    await t
+      .http()
+      .delete(`/api/listings/${listing.id}/images/${img.id}`)
+      .set(...auth(owner))
+      .expect(404);
+  });
+
+  it("images of a deactivated seller's listing are hidden like the listing", async () => {
+    const seller = await t.user("gone");
+    const listing = await t.listing(seller);
+    await t.upload(seller, listing.id, await png()).expect(201);
+    await t.http().get(`/api/listings/${listing.id}/images`).expect(200);
+    await t.db.query(`UPDATE users SET is_active = false WHERE id = $1`, [
+      seller.id,
+    ]);
+    await t.http().get(`/api/listings/${listing.id}`).expect(404);
+    await t.http().get(`/api/listings/${listing.id}/images`).expect(404);
   });
 });

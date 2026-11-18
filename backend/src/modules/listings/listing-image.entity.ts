@@ -93,4 +93,17 @@ export class ListingImage {
 
   @OneToMany(() => ImageJob, (job) => job.image)
   jobs: ImageJob[];
+
+  /**
+   * Server-side details stay out of API responses: where the private
+   * original (with its EXIF data) is stored, and internal error text.
+   */
+  toJSON(): Partial<ListingImage> {
+    const publicFields: Partial<ListingImage> = { ...this };
+    delete publicFields.storageKeyOriginal;
+    delete publicFields.processingError;
+    delete publicFields.jobs;
+    delete publicFields.listing;
+    return publicFields;
+  }
 }

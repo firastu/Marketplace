@@ -47,9 +47,26 @@ class CorsIoAdapter extends IoAdapter {
  * Original uploads keep the camera's EXIF data (often including GPS
  * coordinates of the seller's home) and are stored for reprocessing only.
  * Only the re-encoded, metadata-free variants are public.
+ *
+ * The check runs on the path the way the static file server will resolve
+ * it: percent-decoded and split on any run of slashes. Matching the raw
+ * URL let "/%6Friginal/", "//original/" or "/thumb/../original/" through.
  */
+export function isPrivateUploadPath(rawPath: string): boolean {
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent(rawPath);
+  } catch {
+    return true;
+  }
+  if (decoded.includes("\0")) return true;
+  return decoded
+    .split(/[\\/]+/)
+    .some((segment) => segment.toLowerCase() === "original");
+}
+
 function blockOriginalUploads(req: Request, res: Response, next: NextFunction) {
-  if (/^\/listings\/[^/]+\/original\//.test(req.path)) {
+  if (isPrivateUploadPath(req.path)) {
     res.status(404).end();
     return;
   }
