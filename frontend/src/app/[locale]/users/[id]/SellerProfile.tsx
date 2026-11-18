@@ -3,19 +3,21 @@
 import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useErrorText } from '@/i18n/errors';
-import { Link } from '@/i18n/navigation';
+import { Link, useRouter } from '@/i18n/navigation';
 import { useFormat } from '@/i18n/use-format';
-import { useParams } from 'next/navigation';
-import { MessageSquareText, Store, UserRoundX } from 'lucide-react';
+import { Flag, MessageSquareText, Store, UserRoundX } from 'lucide-react';
+import { useAuth } from '@/hooks/use-auth';
+import { loginHref } from '@/hooks/use-require-auth';
 import { getListings, Listing, PublicUser } from '@/services/listings.service';
 import { getUser, getUserRating, getUserReviews, Rating, Review } from '@/services/users.service';
 import { Avatar, RatingSummary, Stars, VerifiedBadge } from '@/components/bits';
+import { ReportDialog } from '@/components/ReportDialog';
 import { ListingCard, ListingGrid, ListingGridSkeleton } from '@/components/ListingCard';
 import { buttonClass } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import styles from './page.module.css';
 
-interface Profile {
+export interface Profile {
   user: PublicUser;
   rating: Rating;
   reviews: Review[];
@@ -25,9 +27,17 @@ interface Profile {
 
 type State = Profile | { error: unknown } | null;
 
-export default function SellerPage() {
-  const { id } = useParams<{ id: string }>();
-  const [state, setState] = useState<State>(null);
+interface Props {
+  id: string;
+  /** Rendered on the server; null when it could not be loaded there. */
+  initial: Profile | null;
+}
+
+export default function SellerProfile({ id, initial }: Props) {
+  const { user: me } = useAuth();
+  const router = useRouter();
+  const [state, setState] = useState<State>(initial);
+  const [reportOpen, setReportOpen] = useState(false);
   const [tab, setTab] = useState<'listings' | 'reviews'>('listings');
   const t = useTranslations('profile');
   const tl = useTranslations('listing');
@@ -36,7 +46,7 @@ export default function SellerPage() {
   const errorText = useErrorText();
 
   useEffect(() => {
-    if (!id) return;
+    if (!id || initial) return;
     let cancelled = false;
     Promise.all([
       getUser(id),
@@ -59,7 +69,7 @@ export default function SellerPage() {
     return () => {
       cancelled = true;
     };
-  }, [id]);
+  }, [id, initial]);
 
   if (state === null) {
     return (
@@ -108,7 +118,7 @@ export default function SellerPage() {
               {user.isVerified && <VerifiedBadge />}
               <RatingSummary average={rating.average} count={rating.count} />
               {user.createdAt && (
-                <span className="muted">
+                <span className="muted" suppressHydrationWarning>
                   {tl('memberSince', { date: fmt.memberSince(user.createdAt) })}
                 </span>
               )}
@@ -119,6 +129,19 @@ export default function SellerPage() {
               </p>
             )}
           </div>
+          {me?.id !== user.id && (
+            <button
+              type="button"
+              className={styles.report}
+              onClick={() => {
+                if (!me) router.push(loginHref(`/users/${user.id}`));
+                else setReportOpen(true);
+              }}
+            >
+              <Flag aria-hidden="true" />
+              {t('report')}
+            </button>
+          )}
         </div>
       </section>
 
@@ -169,7 +192,9 @@ export default function SellerPage() {
                       <span className={styles.reviewer} dir="auto">
                         {reviewer}
                       </span>
-                      <span className="muted">{fmt.timeAgo(review.createdAt)}</span>
+                      <span className="muted" suppressHydrationWarning>
+                        {fmt.timeAgo(review.createdAt)}
+                      </span>
                     </div>
                     <Stars value={review.rating} />
                   </div>
@@ -193,6 +218,14 @@ export default function SellerPage() {
             {t('noReviewsBody')}
           </EmptyState>
         ))}
+
+      <ReportDialog
+        open={reportOpen}
+        onClose={() => setReportOpen(false)}
+        targetType="user"
+        targetId={user.id}
+        targetName={name}
+      />
     </div>
   );
 }

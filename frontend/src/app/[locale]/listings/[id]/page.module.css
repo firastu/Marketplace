@@ -210,6 +210,29 @@
   color: var(--accent-ink);
 }
 
+.report {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: var(--s-2);
+  min-block-size: var(--touch);
+  padding-inline: var(--s-2);
+  border-radius: var(--r-md);
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.report:hover {
+  color: var(--danger);
+}
+
+.report svg {
+  inline-size: 1rem;
+  block-size: 1rem;
+}
+
 .stickyBar {
   position: sticky;
   inset-block-end: 0;

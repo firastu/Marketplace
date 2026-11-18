@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useErrorText } from '@/i18n/errors';
 import { Link, useRouter } from '@/i18n/navigation';
@@ -10,7 +9,9 @@ import {
   ChevronRight,
   Clock,
   Eye,
+  Flag,
   Handshake,
+  Hourglass,
   MapPin,
   MessageCircle,
   Pencil,
@@ -31,6 +32,7 @@ import {
 } from '@/services/listings.service';
 import { getMyConversations, startConversation } from '@/services/messages.service';
 import { getUserRating, Rating } from '@/services/users.service';
+import { ReportDialog } from '@/components/ReportDialog';
 import { Avatar, Price, RatingSummary, StatusBadge, VerifiedBadge } from '@/components/bits';
 import { FavoriteButton } from '@/components/FavoriteButton';
 import { Gallery } from '@/components/Gallery';
@@ -52,8 +54,18 @@ const NEXT_STATUS: Record<string, OwnerStatus[]> = {
 
 type State = { listing: Listing } | { error: unknown; notFound: boolean } | null;
 
-export default function ListingDetailPage() {
-  const { id } = useParams<{ id: string }>();
+interface Props {
+  id: string;
+  /**
+   * The listing as the server rendered it for a guest. Null when a guest may
+   * not see it (draft, under review, removed) or the server could not load
+   * it: the browser then tries again with the visitor's token.
+   */
+  initial: Listing | null;
+  initialRating: Rating | null;
+}
+
+export default function ListingDetail({ id, initial, initialRating }: Props) {
   const router = useRouter();
   const { user } = useAuth();
   const toast = useToast();
@@ -64,16 +76,19 @@ export default function ListingDetailPage() {
   const fmt = useFormat();
   const errorText = useErrorText();
 
-  const [state, setState] = useState<State>(null);
+  const [state, setState] = useState<State>(initial ? { listing: initial } : null);
   const [attempt, setAttempt] = useState(0);
-  const [rating, setRating] = useState<Rating | null>(null);
+  const [rating, setRating] = useState<Rating | null>(initialRating);
+  const [reportOpen, setReportOpen] = useState(false);
   const [contactOpen, setContactOpen] = useState(false);
   const quickMessages = QUICK_MESSAGES.map((key) => t(`quick.${key}`));
   const [message, setMessage] = useState(quickMessages[0]);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (!id) return;
+    // Server-rendered data is used as is: fetching again would only count a
+    // second view. Only a missing listing (or "Try again") loads here.
+    if (!id || (initial && attempt === 0)) return;
     let cancelled = false;
     getListingById(id)
       .then((listing) => {
@@ -91,12 +106,12 @@ export default function ListingDetailPage() {
     return () => {
       cancelled = true;
     };
-  }, [id, attempt]);
+  }, [id, attempt, initial]);
 
   const listing = state && 'listing' in state ? state.listing : null;
   const sellerId = listing?.user?.id;
   useEffect(() => {
-    if (!sellerId) return;
+    if (!sellerId || initialRating) return;
     let cancelled = false;
     getUserRating(sellerId)
       .then((r) => !cancelled && setRating(r))
@@ -104,7 +119,7 @@ export default function ListingDetailPage() {
     return () => {
       cancelled = true;
     };
-  }, [sellerId]);
+  }, [sellerId, initialRating]);
 
   const handleContact = useCallback(async () => {
     if (!listing) return;
@@ -237,6 +252,12 @@ export default function ListingDetailPage() {
   const isOwner = !!user && user.id === l.userId;
   const canContact = !isOwner && ['active', 'reserved'].includes(l.status);
   const statusActions = NEXT_STATUS[l.status] ?? [];
+  const pendingReview = l.status === 'pending_review';
+
+  const handleReport = () => {
+    if (!user) router.push(loginHref(`/listings/${l.id}`));
+    else setReportOpen(true);
+  };
 
   const contactButton = canContact && (
     <Button variant="accent" size="lg" block loading={busy} onClick={handleContact}>
@@ -309,6 +330,12 @@ export default function ListingDetailPage() {
               {isOwner ? (
                 <>
                   <p className={styles.ownerNote}>{t('yours')}</p>
+                  {pendingReview && (
+                    <div className="notice notice--warning" role="status">
+                      <Hourglass aria-hidden="true" />
+                      <span className="notice__body">{t('pendingReview')}</span>
+                    </div>
+                  )}
                   <Link
                     href={`/listings/${l.id}/edit`}
                     className={buttonClass({ variant: 'primary', block: true })}
@@ -353,7 +380,7 @@ export default function ListingDetailPage() {
                       {sellerName}
                     </span>
                     {seller.createdAt && (
-                      <span className="muted">
+                      <span className="muted" suppressHydrationWarning>
                         {t('memberSince', { date: fmt.memberSince(seller.createdAt) })}
                       </span>
                     )}
@@ -369,8 +396,20 @@ export default function ListingDetailPage() {
 
             <p className={styles.safety}>
               <Handshake aria-hidden="true" />
-              {t('safety')}
+              <span>
+                {t('safety')}{' '}
+                <Link href="/rules" className="link">
+                  {t('safetyMore')}
+                </Link>
+              </span>
             </p>
+
+            {!isOwner && (
+              <button type="button" className={styles.report} onClick={handleReport}>
+                <Flag aria-hidden="true" />
+                {t('report')}
+              </button>
+            )}
           </aside>
         </div>
       </div>
@@ -429,6 +468,14 @@ export default function ListingDetailPage() {
           </Button>
         </form>
       </Dialog>
+
+      <ReportDialog
+        open={reportOpen}
+        onClose={() => setReportOpen(false)}
+        targetType="listing"
+        targetId={l.id}
+        targetName={l.title}
+      />
     </>
   );
 }
@@ -458,7 +505,7 @@ function Summary({ listing: l }: { listing: Listing }) {
         )}
         <li>
           <Clock aria-hidden="true" />
-          <time dateTime={l.createdAt}>{t('posted', { when: fmt.timeAgo(l.createdAt) })}</time>
+          <time dateTime={l.createdAt} suppressHydrationWarning>{t('posted', { when: fmt.timeAgo(l.createdAt) })}</time>
         </li>
         <li>
           <Eye aria-hidden="true" />
