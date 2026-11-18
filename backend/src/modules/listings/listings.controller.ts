@@ -12,7 +12,6 @@ import {
   UseInterceptors,
   UploadedFile,
   ParseFilePipe,
-  MaxFileSizeValidator,
 } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
 import {
@@ -27,10 +26,14 @@ import { CreateListingDto } from "./dto/create-listing.dto";
 import { UpdateListingDto } from "./dto/update-listing.dto";
 import { UpdateListingStatusDto } from "./dto/update-listing-status.dto";
 import { GetListingsQueryDto } from "./dto/get-listings-query.dto";
+import { ReorderImagesDto } from "./dto/reorder-images.dto";
 import { Public } from "../auth/public.decorator";
 import { CurrentUser } from "../auth/current-user.decorator";
+import { Throttle } from "@nestjs/throttler";
+import { WRITE_THROTTLE } from "../../common/throttle";
+import type { AuthUser } from "../auth/jwt.strategy";
 import {
-  imageDiskStorage,
+  imageUploadOptions,
   ImageFileValidator,
 } from "../../common/image-upload.utils";
 
@@ -41,12 +44,17 @@ export class ListingsController {
 
   // ── Listing image sub-resource ────────────────────────────────────────────
 
+  @Public()
   @Get(":listingId/images")
   @ApiOperation({ summary: "Get all images for a listing" })
-  async getListingImages(@Param("listingId", ParseUUIDPipe) listingId: string) {
-    return this.listingsService.getListingImages(listingId);
+  async getListingImages(
+    @Param("listingId", ParseUUIDPipe) listingId: string,
+    @CurrentUser() viewer?: AuthUser,
+  ) {
+    return this.listingsService.getListingImages(listingId, viewer);
   }
 
+  @Throttle(WRITE_THROTTLE)
   @Post(":listingId/images")
   @ApiBearerAuth()
   @ApiOperation({ summary: "Upload an image for a listing" })
@@ -57,29 +65,20 @@ export class ListingsController {
       properties: { file: { type: "string", format: "binary" } },
     },
   })
-  @UseInterceptors(
-    FileInterceptor("file", {
-      storage: imageDiskStorage,
-      limits: { fileSize: 10 * 1024 * 1024 },
-    }),
-  )
+  @UseInterceptors(FileInterceptor("file", imageUploadOptions))
   async uploadImage(
     @Param("listingId", ParseUUIDPipe) listingId: string,
     @CurrentUser("id") userId: string,
-    @UploadedFile(
-      new ParseFilePipe({
-        validators: [
-          new MaxFileSizeValidator({ maxSize: 10 * 1024 * 1024 }),
-          new ImageFileValidator(),
-        ],
-      }),
-    )
+    @UploadedFile(new ParseFilePipe({ validators: [new ImageFileValidator()] }))
     file: Express.Multer.File,
     @Query("primary") primary?: string,
   ) {
-    const url = `/uploads/listings/${file.filename}`;
-    const isPrimary = primary === "true";
-    return this.listingsService.addImage(listingId, userId, url, isPrimary);
+    return this.listingsService.addImage(
+      listingId,
+      userId,
+      file.buffer,
+      primary === "true",
+    );
   }
 
   @Patch(":listingId/images/order")
@@ -88,10 +87,9 @@ export class ListingsController {
   async reorderImages(
     @Param("listingId", ParseUUIDPipe) listingId: string,
     @CurrentUser("id") userId: string,
-    @Body() body: { imageIds: string[] },
+    @Body() body: ReorderImagesDto,
   ) {
-    await this.listingsService.reorderImages(listingId, userId, body.imageIds);
-    return { message: "Images reordered" };
+    return this.listingsService.reorderImages(listingId, userId, body.imageIds);
   }
 
   @Patch(":listingId/images/:imageId/cover")
@@ -109,11 +107,11 @@ export class ListingsController {
   @ApiBearerAuth()
   @ApiOperation({ summary: "Delete a listing image" })
   async deleteImage(
-    @Param("listingId", ParseUUIDPipe) _listingId: string,
+    @Param("listingId", ParseUUIDPipe) listingId: string,
     @Param("imageId", ParseUUIDPipe) imageId: string,
     @CurrentUser("id") userId: string,
   ) {
-    await this.listingsService.removeImage(imageId, userId);
+    await this.listingsService.removeImage(listingId, imageId, userId);
     return { message: "Image deleted" };
   }
 
@@ -140,11 +138,18 @@ export class ListingsController {
 
   @Public()
   @Get(":id")
-  @ApiOperation({ summary: "Get listing by ID" })
-  async getById(@Param("id", ParseUUIDPipe) id: string) {
-    return this.listingsService.findById(id);
+  @ApiOperation({
+    summary:
+      "Get listing by ID (drafts/removed listings only visible to the owner)",
+  })
+  async getById(
+    @Param("id", ParseUUIDPipe) id: string,
+    @CurrentUser() viewer?: AuthUser,
+  ) {
+    return this.listingsService.findVisibleById(id, viewer);
   }
 
+  @Throttle(WRITE_THROTTLE)
   @Post()
   @ApiBearerAuth()
   @ApiOperation({ summary: "Create a new listing" })
@@ -179,7 +184,7 @@ export class ListingsController {
 
   @Delete(":id")
   @ApiBearerAuth()
-  @ApiOperation({ summary: "Delete a listing" })
+  @ApiOperation({ summary: "Delete a listing (soft delete, chats are kept)" })
   async remove(
     @Param("id", ParseUUIDPipe) id: string,
     @CurrentUser("id") userId: string,

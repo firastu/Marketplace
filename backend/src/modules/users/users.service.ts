@@ -16,17 +16,34 @@ export class UsersService {
     return user;
   }
 
+  /** Case-insensitive, so "Ali@x.com" and "ali@x.com" are one account. */
   async findByEmail(email: string): Promise<User | null> {
-    return this.usersRepo.findOne({ where: { email } });
+    return this.usersRepo
+      .createQueryBuilder("user")
+      .where("LOWER(user.email) = LOWER(:email)", { email })
+      .getOne();
+  }
+
+  /** Only for credential checks: includes the normally hidden hash. */
+  async findByEmailWithPassword(email: string): Promise<User | null> {
+    return this.usersRepo
+      .createQueryBuilder("user")
+      .addSelect("user.passwordHash")
+      .where("LOWER(user.email) = LOWER(:email)", { email })
+      .getOne();
   }
 
   async findByUsername(username: string): Promise<User | null> {
-    return this.usersRepo.findOne({ where: { username } });
+    return this.usersRepo
+      .createQueryBuilder("user")
+      .where("LOWER(user.username) = LOWER(:username)", { username })
+      .getOne();
   }
 
   async create(data: Partial<User>): Promise<User> {
     const user = this.usersRepo.create(data);
-    return this.usersRepo.save(user);
+    const saved = await this.usersRepo.save(user);
+    return this.findById(saved.id);
   }
 
   async update(id: string, data: Partial<User>): Promise<User> {

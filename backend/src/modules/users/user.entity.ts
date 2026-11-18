@@ -5,6 +5,7 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
 } from "typeorm";
+import { toPublicUser, PublicUser } from "./user-views";
 
 @Entity("users")
 export class User {
@@ -14,7 +15,9 @@ export class User {
   @Column({ unique: true, length: 255 })
   email: string;
 
-  @Column({ name: "password_hash", length: 255 })
+  // Never loaded unless a query asks for it explicitly (see
+  // UsersService.findByEmailWithPassword).
+  @Column({ name: "password_hash", length: 255, select: false })
   passwordHash: string;
 
   @Column({ unique: true, length: 100 })
@@ -49,4 +52,15 @@ export class User {
 
   @UpdateDateColumn({ name: "updated_at", type: "timestamptz" })
   updatedAt: Date;
+
+  /**
+   * Any User that ends up in an HTTP response or a Socket.IO payload
+   * (e.g. as a listing's seller or a message's sender) is serialised
+   * through JSON.stringify, which calls this. Only public fields leave the
+   * server this way; endpoints that return the caller's own account use
+   * toSelfUser() explicitly.
+   */
+  toJSON(): PublicUser {
+    return toPublicUser(this);
+  }
 }

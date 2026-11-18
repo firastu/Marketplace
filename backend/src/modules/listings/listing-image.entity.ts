@@ -4,6 +4,7 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
+  DeleteDateColumn,
   ManyToOne,
   JoinColumn,
   OneToMany,
@@ -78,8 +79,11 @@ export class ListingImage {
   @Column({ name: "processing_error", type: "text", nullable: true })
   processingError: string;
 
-  @Column({ name: "deleted_at", type: "timestamptz", nullable: true })
-  deletedAt: Date;
+  // Soft delete: TypeORM automatically leaves rows with deleted_at set out
+  // of find() results and relation joins (listing.images), so deleted
+  // images never reach clients and need no manual IS NULL filters.
+  @DeleteDateColumn({ name: "deleted_at", type: "timestamptz", nullable: true })
+  deletedAt: Date | null;
 
   @CreateDateColumn({ name: "created_at", type: "timestamptz" })
   createdAt: Date;

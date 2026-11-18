@@ -4,6 +4,7 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
+  DeleteDateColumn,
   ManyToOne,
   OneToMany,
   JoinColumn,
@@ -11,6 +12,18 @@ import {
 import { User } from "../users/user.entity";
 import { Category } from "../categories/category.entity";
 import { ListingImage } from "./listing-image.entity";
+
+/** Syrian pound and US dollar — the two currencies used for pricing in Syria. */
+export const CURRENCIES = ["SYP", "USD"] as const;
+export type Currency = (typeof CURRENCIES)[number];
+
+export const CONDITIONS = ["new", "like_new", "used", "fair", "poor"] as const;
+
+/** Statuses a listing owner may set. "removed" is reserved for moderators. */
+export const OWNER_SETTABLE_STATUSES = ["active", "reserved", "sold"] as const;
+
+/** Statuses anyone may view. Sold listings stay visible (spec §6). */
+export const PUBLIC_STATUSES = ["active", "reserved", "sold"];
 
 @Entity("listings")
 export class Listing {
@@ -43,8 +56,8 @@ export class Listing {
   @Column({ type: "numeric", precision: 12, scale: 2 })
   price: number;
 
-  @Column({ length: 3, default: "EUR" })
-  currency: string;
+  @Column({ length: 3, default: "SYP" })
+  currency: Currency;
 
   @Column({ length: 20, default: "used" })
   condition: string;
@@ -84,4 +97,9 @@ export class Listing {
 
   @UpdateDateColumn({ name: "updated_at", type: "timestamptz" })
   updatedAt: Date;
+
+  // Soft delete (migration 009). Deleting a listing used to hard-delete it,
+  // which cascaded to conversations and erased the buyer's chat history.
+  @DeleteDateColumn({ name: "deleted_at", type: "timestamptz", nullable: true })
+  deletedAt: Date | null;
 }

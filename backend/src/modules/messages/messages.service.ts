@@ -11,6 +11,8 @@ import { Message } from "./message.entity";
 import { Listing } from "../listings/listing.entity";
 import { MessagesGateway } from "./messages.gateway";
 
+const CONTACTABLE_STATUSES = ["active", "reserved"];
+
 @Injectable()
 export class MessagesService {
   constructor(
@@ -28,21 +30,32 @@ export class MessagesService {
       where: [{ buyerId: userId }, { sellerId: userId }],
       relations: ["listing", "buyer", "seller"],
       order: { lastMessageAt: "DESC" },
+      // Keep showing chats whose listing was deleted; the client can check
+      // listing.deletedAt to label them.
+      withDeleted: true,
     });
+    if (conversations.length === 0) return [];
 
-    // Attach unread count per conversation
-    const results = await Promise.all(
-      conversations.map(async (conv) => {
-        const unreadCount = await this.msgRepo
-          .createQueryBuilder("m")
-          .where("m.conversation_id = :convId", { convId: conv.id })
-          .andWhere("m.sender_id != :userId", { userId })
-          .andWhere("m.is_read = false")
-          .getCount();
-        return { ...conv, unreadCount };
-      }),
+    // One grouped query instead of one COUNT per conversation.
+    const rows: { conversationId: string; count: string }[] = await this.msgRepo
+      .createQueryBuilder("m")
+      .select("m.conversation_id", "conversationId")
+      .addSelect("COUNT(*)", "count")
+      .where("m.conversation_id IN (:...ids)", {
+        ids: conversations.map((c) => c.id),
+      })
+      .andWhere("m.sender_id != :userId", { userId })
+      .andWhere("m.is_read = false")
+      .groupBy("m.conversation_id")
+      .getRawMany();
+    const unread = new Map(
+      rows.map((r) => [r.conversationId, Number(r.count)]),
     );
-    return results;
+
+    return conversations.map((conv) => ({
+      ...conv,
+      unreadCount: unread.get(conv.id) ?? 0,
+    }));
   }
 
   async getConversationMessages(
@@ -83,16 +96,26 @@ export class MessagesService {
   ): Promise<{ conversation: Conversation; message: Message }> {
     const listing = await this.listingRepo.findOne({
       where: { id: listingId },
+      relations: ["user"],
     });
-    if (!listing) throw new NotFoundException("Listing not found");
+    if (!listing || !listing.user?.isActive) {
+      throw new NotFoundException("Listing not found");
+    }
     if (listing.userId === buyerId) {
       throw new BadRequestException("Cannot message yourself");
     }
 
-    // Check if conversation already exists
     let conv = await this.convRepo.findOne({
       where: { listingId, buyerId, sellerId: listing.userId },
     });
+
+    // New conversations only for listings that are still available. An
+    // existing conversation can continue even if the listing changed.
+    if (!conv && !CONTACTABLE_STATUSES.includes(listing.status)) {
+      throw new BadRequestException(
+        "This listing is no longer available for new enquiries",
+      );
+    }
 
     if (!conv) {
       conv = this.convRepo.create({

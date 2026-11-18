@@ -7,6 +7,7 @@ import {
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import { Review } from "./review.entity";
+import { Conversation } from "../messages/conversation.entity";
 import { CreateReviewDto } from "./dto/reviews.dto";
 import { UpdateReviewDto } from "./dto/reviews.dto";
 
@@ -15,6 +16,8 @@ export class ReviewsService {
   constructor(
     @InjectRepository(Review)
     private readonly reviewRepo: Repository<Review>,
+    @InjectRepository(Conversation)
+    private readonly convRepo: Repository<Conversation>,
   ) {}
 
   async findByUser(userId: string): Promise<Review[]> {
@@ -30,11 +33,29 @@ export class ReviewsService {
       throw new ForbiddenException("Cannot review yourself");
     }
 
+    // Buyer and seller can rate each other, but only after they actually
+    // exchanged messages about this listing.
+    const conversation = await this.convRepo
+      .createQueryBuilder("c")
+      .innerJoin("c.messages", "m")
+      .where("c.listing_id = :listingId", { listingId: dto.listingId })
+      .andWhere(
+        "((c.buyer_id = :a AND c.seller_id = :b) OR (c.buyer_id = :b AND c.seller_id = :a))",
+        { a: reviewerId, b: dto.reviewedUserId },
+      )
+      .andWhere("m.sender_id = :b", { b: dto.reviewedUserId })
+      .getOne();
+    if (!conversation) {
+      throw new ForbiddenException(
+        "You can only review someone you have exchanged messages with about this listing",
+      );
+    }
+
     const existing = await this.reviewRepo.findOne({
       where: {
         reviewerId,
         reviewedUserId: dto.reviewedUserId,
-        listingId: dto.listingId ?? undefined,
+        listingId: dto.listingId,
       },
     });
     if (existing) {

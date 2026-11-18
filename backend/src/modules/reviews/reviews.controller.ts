@@ -12,6 +12,8 @@ import { ApiTags, ApiBearerAuth, ApiOperation } from "@nestjs/swagger";
 import { ReviewsService } from "./reviews.service";
 import { CreateReviewDto, UpdateReviewDto } from "./dto/reviews.dto";
 import { CurrentUser } from "../auth/current-user.decorator";
+import { Throttle } from "@nestjs/throttler";
+import { WRITE_THROTTLE } from "../../common/throttle";
 import { Public } from "../auth/public.decorator";
 
 @ApiTags("Reviews")
@@ -34,6 +36,7 @@ export class ReviewsController {
     return this.reviewsService.getAverageRating(userId);
   }
 
+  @Throttle(WRITE_THROTTLE)
   @Post()
   @ApiOperation({ summary: "Leave a review for a user" })
   create(@Body() dto: CreateReviewDto, @CurrentUser("id") userId: string) {

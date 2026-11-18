@@ -1,6 +1,5 @@
-import { diskStorage } from "multer";
-import { extname, join } from "path";
-import { v4 as uuid } from "uuid";
+import { memoryStorage } from "multer";
+import { join } from "path";
 import { FileValidator } from "@nestjs/common";
 import * as fs from "fs";
 
@@ -16,38 +15,37 @@ const envUploadDir = (() => {
 export const UPLOAD_DIR = join(envUploadDir, "listings");
 export const UPLOADS_DIR = envUploadDir;
 
+export const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 export const ALLOWED_MIME_TYPES = /^image\/(jpeg|png|webp)$/;
 
-export const imageDiskStorage = diskStorage({
-  destination: UPLOAD_DIR,
-  filename: (_req, file, cb) => {
-    const ext = extname(file.originalname).toLowerCase();
-    cb(null, `${uuid()}${ext}`);
-  },
-});
+/**
+ * Uploads are kept in memory (capped at MAX_IMAGE_BYTES by multer) and only
+ * written to disk after the listing owner is verified and sharp has
+ * confirmed the bytes really are an image. With disk storage a rejected or
+ * unauthorised upload used to leave its file behind, already publicly
+ * served under the client-supplied extension.
+ */
+export const imageMemoryStorage = memoryStorage();
 
+export const imageUploadOptions = {
+  storage: imageMemoryStorage,
+  limits: { fileSize: MAX_IMAGE_BYTES, files: 1 },
+};
+
+/**
+ * Cheap first filter on the declared MIME type. The authoritative check is
+ * ImageProcessingService.detectFormat(), which decodes the actual bytes.
+ */
 export class ImageFileValidator extends FileValidator<Record<string, unknown>> {
   constructor() {
     super({});
   }
 
-  async isValid(file: Express.Multer.File): Promise<boolean> {
-    if (!file?.mimetype) return false;
-    if (!ALLOWED_MIME_TYPES.test(file.mimetype)) return false;
-    if (!file.buffer) return true;
-    try {
-      const { fileTypeFromBuffer } = await import("file-type");
-      const detected = await fileTypeFromBuffer(file.buffer);
-      if (detected) {
-        return ALLOWED_MIME_TYPES.test(detected.mime);
-      }
-    } catch {
-      // file-type detection failed — trust browser MIME type
-    }
-    return true;
+  isValid(file?: Express.Multer.File): boolean {
+    return !!file?.mimetype && ALLOWED_MIME_TYPES.test(file.mimetype);
   }
 
   buildErrorMessage(file: Express.Multer.File): string {
-    return `Validation failed (current file type is ${file.mimetype}, expected type is ${ALLOWED_MIME_TYPES})`;
+    return `Unsupported file type ${file?.mimetype ?? "unknown"}; upload a JPEG, PNG or WebP image`;
   }
 }

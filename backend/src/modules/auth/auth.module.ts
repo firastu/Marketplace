@@ -8,6 +8,7 @@ import { AuthService } from "./auth.service";
 import { JwtStrategy } from "./jwt.strategy";
 import { JwtAuthGuard } from "./jwt-auth.guard";
 import { UsersModule } from "../users/users.module";
+import { UserAwareThrottlerGuard } from "../../common/throttle";
 
 @Module({
   imports: [
@@ -27,7 +28,8 @@ import { UsersModule } from "../users/users.module";
         return {
           secret,
           signOptions: {
-            expiresIn: expiresIn as any,
+            // jsonwebtoken accepts strings like "7d"; the type is narrower.
+            expiresIn: expiresIn as unknown as number,
           },
         };
       },
@@ -37,7 +39,10 @@ import { UsersModule } from "../users/users.module";
   providers: [
     AuthService,
     JwtStrategy,
+    // Order matters: authenticate first so the throttler can count
+    // logged-in users per account rather than per IP.
     { provide: APP_GUARD, useClass: JwtAuthGuard },
+    { provide: APP_GUARD, useClass: UserAwareThrottlerGuard },
   ],
   exports: [AuthService, JwtModule],
 })

@@ -1,45 +1,14 @@
 import { NestFactory } from "@nestjs/core";
-import { ValidationPipe } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { SwaggerModule, DocumentBuilder } from "@nestjs/swagger";
 import { NestExpressApplication } from "@nestjs/platform-express";
-import { join } from "path";
-import { realpathSync } from "fs";
 import { AppModule } from "./app.module";
-
-const raw = process.env.UPLOAD_DIR || "./uploads";
-const UPLOADS_DIR = (() => {
-  try {
-    return realpathSync(raw);
-  } catch {
-    return join(process.cwd(), raw.replace(/^\.\//, ""));
-  }
-})();
+import { configureApp } from "./app.setup";
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
-
-  // Global prefix for all routes
-  app.setGlobalPrefix("api");
-
-  // Serve uploaded files statically
-  app.useStaticAssets(UPLOADS_DIR, { prefix: "/uploads" });
-
-  // Enable CORS for frontend
-  app.enableCors({
-    origin: true,
-    credentials: true,
-  });
-
-  // Global validation pipe
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      forbidNonWhitelisted: true,
-      transform: true,
-    }),
-  );
-
+  configureApp(app);
+  app.enableShutdownHooks();
   // Swagger API docs
   const swaggerConfig = new DocumentBuilder()
     .setTitle("Marketplace API")
@@ -63,7 +32,7 @@ async function bootstrap() {
         "- `PATCH /api/listings/:id/images/:imageId/cover` — set cover image\n" +
         "- `DELETE /api/listings/:id/images/:imageId` — soft-delete an image",
     )
-    .setVersion("0.3.0")
+    .setVersion("0.4.0")
     .addBearerAuth()
     .build();
   const document = SwaggerModule.createDocument(app, swaggerConfig);

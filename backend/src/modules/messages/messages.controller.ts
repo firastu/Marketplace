@@ -16,6 +16,8 @@ import {
 import { MessagesService } from "./messages.service";
 import { StartConversationDto, SendMessageDto } from "./dto/messages.dto";
 import { CurrentUser } from "../auth/current-user.decorator";
+import { Throttle } from "@nestjs/throttler";
+import { WRITE_THROTTLE } from "../../common/throttle";
 
 @ApiTags("Conversations")
 @ApiBearerAuth()
@@ -58,6 +60,7 @@ export class MessagesController {
     return this.messagesService.getConversationMessages(id, userId);
   }
 
+  @Throttle(WRITE_THROTTLE)
   @Post()
   @ApiOperation({ summary: "Start a new conversation about a listing" })
   @ApiResponse({
@@ -75,6 +78,7 @@ export class MessagesController {
     );
   }
 
+  @Throttle(WRITE_THROTTLE)
   @Post(":id/messages")
   @ApiOperation({ summary: "Send a message in a conversation" })
   @ApiParam({ name: "id", description: "Conversation UUID" })
