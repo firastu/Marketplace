@@ -3,7 +3,8 @@
 #
 # NEXT_PUBLIC_* values are baked into the browser bundle at build time:
 #   NEXT_PUBLIC_BACKEND_URL  backend URL as seen from the user's browser
-#                            (images, WebSocket), e.g. https://api.example.sy
+#                            (REST API, images, WebSocket),
+#                            e.g. https://api.example.sy
 #   BACKEND_INTERNAL_URL     backend URL as seen from this container
 #                            (the /api proxy), e.g. http://backend:3001
 
@@ -15,8 +16,12 @@ RUN npm ci --no-audit --no-fund
 FROM deps AS build
 ARG NEXT_PUBLIC_BACKEND_URL=http://localhost:3001
 ARG BACKEND_INTERNAL_URL=http://backend:3001
-ENV NEXT_PUBLIC_API_URL=/api \
-    NEXT_PUBLIC_BACKEND_URL=$NEXT_PUBLIC_BACKEND_URL \
+# NEXT_PUBLIC_API_URL is deliberately not set to /api here: the browser
+# calls $NEXT_PUBLIC_BACKEND_URL/api directly. Through the Next.js proxy the
+# backend would see every visitor as this container's IP, so all guests
+# would share one rate-limit bucket (20 logins per minute for the whole
+# site).
+ENV NEXT_PUBLIC_BACKEND_URL=$NEXT_PUBLIC_BACKEND_URL \
     BACKEND_INTERNAL_URL=$BACKEND_INTERNAL_URL \
     NEXT_TELEMETRY_DISABLED=1
 COPY . .
