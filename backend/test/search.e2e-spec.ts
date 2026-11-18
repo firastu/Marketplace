@@ -1,3 +1,4 @@
+import { randomBytes } from "crypto";
 import { TestApp, TestUser } from "./helpers";
 
 /**
@@ -8,8 +9,13 @@ import { TestApp, TestUser } from "./helpers";
 describe("Arabic-aware search", () => {
   let t: TestApp;
   let seller: TestUser;
-  let n = 0;
-  const tag = () => `tg${Date.now().toString(36)}${n++}`;
+  // Letters only: these tests search for digits, and a tag containing
+  // e.g. "43" would match every listing that carries it.
+  const tag = () =>
+    "tg" +
+    Array.from(randomBytes(10), (b) => String.fromCharCode(97 + (b % 26))).join(
+      "",
+    );
 
   beforeAll(async () => {
     t = await TestApp.create();
