@@ -4,8 +4,9 @@ import { NextIntlClientProvider } from 'next-intl';
 import { getMessages, getTranslations, setRequestLocale } from 'next-intl/server';
 import '../globals.css';
 import { Providers } from './providers';
+import { Footer } from '@/components/Footer';
 import Header from '@/components/Header';
-import { SITE_NAME } from '@/config/site';
+import { SITE_NAME, SITE_URL } from '@/config/site';
 import { DIRECTION, isLocale, LOCALES } from '@/i18n/config';
 
 type Props = { children: React.ReactNode; params: Promise<{ locale: string }> };
@@ -20,6 +21,8 @@ export async function generateMetadata({ params }: Pick<Props, 'params'>): Promi
   if (!isLocale(locale)) return {};
   const t = await getTranslations({ locale, namespace: 'meta' });
   return {
+    // Relative URLs in metadata (canonical, og:image) resolve against this.
+    metadataBase: new URL(SITE_URL),
     title: { default: t('titleDefault', { site: SITE_NAME }), template: `%s · ${SITE_NAME}` },
     description: t('description'),
     applicationName: SITE_NAME,
@@ -51,6 +54,7 @@ export default async function RootLayout({ children, params }: Props) {
           <Providers>
             <Header />
             <main id="main">{children}</main>
+            <Footer />
           </Providers>
         </NextIntlClientProvider>
       </body>
