@@ -7,6 +7,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { useConversationSocket } from '@/hooks/use-socket';
 import {
   getConversationMessages,
+  markConversationRead,
   sendMessage,
   Message,
 } from '@/services/messages.service';
@@ -19,23 +20,34 @@ export default function ConversationPage() {
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [body, setBody] = useState('');
   const [sending, setSending] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const userId = user?.id;
+
+  const loadMessages = useCallback(() => {
+    if (!conversationId) return;
+    getConversationMessages(conversationId)
+      .then((loaded) => {
+        setMessages(loaded);
+        setLoadError('');
+      })
+      // A missing or foreign conversation used to look like an empty chat.
+      .catch((err) =>
+        setLoadError(err instanceof Error ? err.message : 'Could not load this conversation'),
+      )
+      .finally(() => setLoading(false));
+  }, [conversationId]);
 
   // Initial load — REST API for history
   useEffect(() => {
-    if (!authLoading && !user) {
+    if (!authLoading && !userId) {
       router.push('/login');
       return;
     }
-    if (user && conversationId) {
-      getConversationMessages(conversationId)
-        .then(setMessages)
-        .catch(() => {})
-        .finally(() => setLoading(false));
-    }
-  }, [authLoading, user, conversationId, router]);
+    if (userId) loadMessages();
+  }, [authLoading, userId, router, loadMessages]);
 
   // WebSocket — real-time incoming messages
   const handleIncoming = useCallback(
@@ -45,10 +57,15 @@ export default function ConversationPage() {
         if (prev.some((m) => m.id === msg.id)) return prev;
         return [...prev, msg];
       });
+      // The user is looking at it, so it must not count as unread.
+      if (msg.senderId !== userId) {
+        markConversationRead(msg.conversationId).catch(() => {});
+      }
     },
-    [],
+    [userId],
   );
-  useConversationSocket(user ? conversationId : null, handleIncoming);
+  // After a dropped connection, reload what was missed while offline.
+  useConversationSocket(userId ? conversationId : null, handleIncoming, loadMessages);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -62,8 +79,8 @@ export default function ConversationPage() {
       const msg = await sendMessage(conversationId, body.trim());
       setMessages((prev) => prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]);
       setBody('');
-    } catch {
-      alert('Failed to send message');
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to send message');
     } finally {
       setSending(false);
     }
@@ -81,6 +98,19 @@ export default function ConversationPage() {
         <h1 style={{ fontSize: '1.25rem' }}>Conversation</h1>
       </div>
 
+      {loadError && (
+        <div className="form-error" role="alert">
+          {loadError}{' '}
+          <button
+            type="button"
+            onClick={loadMessages}
+            style={{ background: 'none', border: 'none', color: 'inherit', textDecoration: 'underline', cursor: 'pointer', padding: 0, font: 'inherit' }}
+          >
+            Try again
+          </button>
+        </div>
+      )}
+
       {/* Message thread */}
       <div
         style={{
@@ -97,7 +127,7 @@ export default function ConversationPage() {
           marginBottom: '1rem',
         }}
       >
-        {messages.length === 0 && (
+        {messages.length === 0 && !loadError && (
           <div style={{ textAlign: 'center', color: 'var(--color-text-light)', padding: '2rem 0' }}>
             No messages yet
           </div>
@@ -142,6 +172,8 @@ export default function ConversationPage() {
           value={body}
           onChange={(e) => setBody(e.target.value)}
           placeholder="Type a message..."
+          maxLength={5000}
+          aria-label="Message"
           style={{
             flex: 1,
             padding: '0.625rem 0.875rem',
@@ -155,7 +187,7 @@ export default function ConversationPage() {
         <button
           type="submit"
           className="btn btn-primary"
-          disabled={sending || !body.trim()}
+          disabled={sending || !body.trim() || !!loadError}
           style={{ width: 'auto' }}
         >
           {sending ? '...' : 'Send'}

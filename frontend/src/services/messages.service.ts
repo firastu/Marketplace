@@ -46,3 +46,11 @@ export function sendMessage(conversationId: string, body: string): Promise<Messa
 export function getUnreadCount(): Promise<{ count: number }> {
   return apiClient<{ count: number }>('/conversations/unread-count', { auth: true });
 }
+
+/** Mark the other participant's messages as read (chat is open). */
+export function markConversationRead(conversationId: string): Promise<{ updated: number }> {
+  return apiClient<{ updated: number }>(`/conversations/${conversationId}/read`, {
+    method: 'POST',
+    auth: true,
+  });
+}
