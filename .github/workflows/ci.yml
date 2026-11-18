@@ -1,0 +1,96 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: marketplace
+          POSTGRES_PASSWORD: marketplace_secret
+          POSTGRES_DB: marketplace_db
+        ports: ["5433:5432"]
+        options: >-
+          --health-cmd "pg_isready -U marketplace"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - name: Unit tests
+        run: npm test
+      - name: End-to-end tests (real PostgreSQL, recreates marketplace_test)
+        run: npm run test:e2e
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: "5433"
+      - run: npm run build
+
+  database-scripts:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: marketplace
+          POSTGRES_PASSWORD: marketplace_secret
+          POSTGRES_DB: marketplace_db
+        ports: ["5433:5432"]
+        options: >-
+          --health-cmd "pg_isready -U marketplace"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Ensure psql is available
+        run: command -v psql || (sudo apt-get update && sudo apt-get install -y postgresql-client)
+      - name: Migrate a fresh database
+        run: bash database/scripts/migrate.sh
+      - name: Second run applies nothing
+        run: bash database/scripts/migrate.sh | tee out.txt && grep -q "up to date" out.txt
+      - name: Seed data loads
+        run: bash database/scripts/seed.sh
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t marketplace-backend ./backend
+      - run: docker build -t marketplace-frontend ./frontend

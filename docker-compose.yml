@@ -1,3 +1,11 @@
+# Local development:
+#   docker compose up -d                       → PostgreSQL only (run the
+#                                                apps with npm, see README)
+# Whole stack in containers:
+#   cp .env.example .env   # then set JWT_SECRET
+#   docker compose --profile app up -d --build
+#   → web app http://localhost:3000, API http://localhost:3001/api
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -17,6 +25,63 @@ services:
       timeout: 5s
       retries: 5
 
+  # Applies pending migrations (tracked in schema_migrations), then exits.
+  migrate:
+    image: postgres:16-alpine
+    profiles: ["app"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-marketplace}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-marketplace_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-marketplace_db}
+    volumes:
+      - ./database:/database:ro
+    entrypoint: ["bash", "/database/scripts/migrate.sh"]
+    restart: "no"
+
+  backend:
+    build: ./backend
+    profiles: ["app"]
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-marketplace}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-marketplace_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-marketplace_db}
+      # Required. The API refuses to start without it.
+      JWT_SECRET: ${JWT_SECRET:-}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+      TRUST_PROXY: ${TRUST_PROXY:-}
+    volumes:
+      - uploads:/data/uploads
+    ports:
+      - "${BACKEND_PORT:-3001}:3001"
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_BACKEND_URL: ${PUBLIC_BACKEND_URL:-http://localhost:3001}
+        BACKEND_INTERNAL_URL: http://backend:3001
+    profiles: ["app"]
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+
 volumes:
   postgres_data:
+    driver: local
+  uploads:
     driver: local
