@@ -65,6 +65,39 @@
 - [x] **`buildImageUrl` missing `listings/` prefix**: URLs were `/uploads/<storageKey>` but storage key already contains `listingId/thumb/...`, missing the `listings/` segment. Fixed to `/uploads/listings/<storageKey>`
 - [x] **Image zoom/lightbox**: Added full-screen lightbox on listing detail page — scroll to zoom (0.5x–4x), drag to pan when zoomed, ← → to navigate images, Escape to close, keyboard +/-/0 zoom controls
 
+### Hardening Pass — security, correctness, tooling
+All verified by the new backend test suite (`npm test`, `npm run test:e2e`).
+
+**Security**
+- [x] Password hashes and emails were returned to anonymous users by `GET /listings` and `GET /listings/:id` (and to chat partners / review readers). Fixed: `passwordHash` has `select: false`; `User.toJSON()` emits public fields only (covers REST and Socket.IO); own account via `toSelfUser()` (`users/user-views.ts`)
+- [x] WebSocket `joinConversation` let any logged-in user subscribe to any chat → participant check with ack
+- [x] Deactivated users could still log in / use tokens / open sockets → checked on login, on every request (JwtStrategy re-reads the user) and on socket connect
+- [x] JWT strategy fell back to `"fallback-secret"` → `getOrThrow`
+- [x] Uploads: magic-byte check never ran (disk storage has no buffer, `file-type` not installed) and the stored extension came from the client filename (an `.html` "image" was served from `/uploads`). Now memory storage → sharp decodes the bytes → only JPEG/PNG/WebP, stored under the detected extension, nothing written before ownership + format checks
+- [x] Originals (with EXIF/GPS) were publicly served → `/uploads/listings/*/original/*` returns 404; variants are re-encoded without metadata
+- [x] Rate limiting (`@nestjs/throttler`): per user when logged in, per IP for guests (Syrian mobile carriers use carrier-grade NAT), stricter on auth and writes. `helmet` headers. CORS allowlist via `CORS_ORIGINS` (REST + Socket.IO)
+- [x] Reviews required no interaction → need a conversation about the listing in which the reviewed user replied; `listingId` required
+
+**Correctness**
+- [x] Image queries used `Not(IsNull())` (= deleted images only): every upload became cover with sortOrder 0, set-cover 404, reorder 400, 15-image cap never applied. `deletedAt` is now a `@DeleteDateColumn`, so TypeORM excludes deleted images everywhere automatically
+- [x] Search hid listings whose images were all deleted; images returned unordered → ordered by `sortOrder`
+- [x] Deleting the cover image left no cover → next image promoted; delete checks the image belongs to the listing in the URL
+- [x] Listing delete was a hard delete that cascaded to conversations/messages → soft delete (migration 009 `deleted_at`); chats kept and labelled "listing deleted"
+- [x] Drafts/removed/expired listings visible to anyone by ID → owner/staff only. Owners can no longer set `removed`, nor edit a moderator-removed listing. Deactivated sellers' listings hidden. View counter now increments (not for the owner)
+- [x] Category filter ignored subcategories; `%`/`_` in search matched everything; malformed filters / unknown categories / oversize fields caused 500s → 400s
+- [x] Slugs dropped Arabic letters; emails were case-sensitive at login
+- [x] Conversations list ran one COUNT per conversation → one grouped query; messages capped at 5000 chars
+- [x] Frontend: filter changes pushed the *previous* filter state to the URL (stale closure); owners couldn't open their own drafts (no token sent)
+
+**Syria basics**
+- [x] Currency: `SYP` (default) / `USD` only (migration 009 + DTO + create form selector + currency filter); prices formatted without decimals for SYP ("SYP 1,500,000", "$650", 0 = "Free"); ZIP field removed from the form; demo data moved to Damascus/Aleppo/Homs
+
+**Tooling**
+- [x] `migrate.sh` tracks applied files in `schema_migrations` (one transaction each, `--status`, `--baseline`), default port 5433 to match compose; shared `db-env.sh`; explicit env overrides `.env`
+- [x] Dockerfiles (backend, frontend standalone) + compose profile `app` (migrate → backend → frontend, uploads volume); `docker compose up -d` still starts only Postgres
+- [x] GitHub Actions CI: backend lint/typecheck/unit/e2e/build, migration scripts, frontend lint/typecheck/build, Docker builds
+- [x] `.env.example` files (root, backend, frontend); `lint` no longer auto-fixes (`lint:fix` does)
+
 ---
 
 ## Current State
@@ -118,19 +151,23 @@
 
 ---
 
-## Next Steps (Priority Order)
+## Next Steps (Priority Order) — towards "Kleinanzeigen for Syria"
 
-1. **[ ] Phase 2: Favorites UI** — Heart button on listing cards + `/favorites` page
-2. **[ ] Phase 2: Edit listing page** — Edit form + image management
-3. **[ ] Phase 2: Reviews UI** — Rating display + leave review form
-4. **[ ] Phase 2: Reports & moderation** — Report button + admin dashboard
-5. **[ ] Polish** — Error states, loading states, mobile layout
+1. **[ ] Arabic first** — i18n (e.g. next-intl), Arabic default + RTL layout, English second; Arabic-normalised search (hamza forms, ة/ه, ى/ي, diacritics, Arabic-Indic digits) with a `pg_trgm` index
+2. **[ ] Syrian locations** — governorate → city/area table (Arabic + English names) replacing free-text city
+3. **[ ] Syrian categories + attributes** — real estate (rooms, m², floor, ownership document), cars (make, model, year, km, fuel, gearbox), phones, solar/batteries/generators, jobs, building materials, livestock; per-category filters; price types (on request / free / swap)
+4. **[ ] Phone-first accounts** — +963 numbers with OTP (local SMS gateway or WhatsApp), password reset, optional Call/WhatsApp buttons on listings
+5. **[ ] Server-rendered listing/search pages** — fast first load on slow connections, Google indexing, link previews when shared on WhatsApp/Telegram/Facebook
+6. **[ ] Trust & safety** — reports + admin moderation (spec MVP), block user, prohibited-items keyword filter (weapons, drugs), verified-phone badge
+7. **[ ] Phase 2 UI** — edit listing, favorites, reviews, seller profile pages
+8. **[ ] Engagement** — saved searches with alerts, listing expiry + renew, push / Telegram notifications
+9. **[ ] Scale** — refresh tokens, background image queue (`image_jobs`), S3/MinIO + CDN, Redis (rate limits, sockets), monitoring
 
 ---
 
 ## Lint & Typecheck Status
 
-- **Backend**: ✅ 0 errors (1 pre-existing warning in `auth.module.ts`)
+- **Backend**: ✅ 0 errors, 0 warnings; 9 unit + 48 e2e tests passing
 - **Frontend**: ✅ 0 errors
 
-Run with: `cd backend && npm run lint && npm run typecheck` / `cd frontend && npm run lint && npm run typecheck`
+Run with: `cd backend && npm run lint && npm run typecheck && npm test && npm run test:e2e` / `cd frontend && npm run lint && npm run typecheck`

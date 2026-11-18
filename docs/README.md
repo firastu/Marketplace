@@ -83,29 +83,26 @@ This starts PostgreSQL on port **5433** with credentials defined in `docker-comp
 ### 2. Run database migrations
 
 ```bash
-# Connect to the running PostgreSQL container and run migrations in order
-docker exec -i marketplace-db psql -U marketplace -d marketplace_db \
-  < backend/src/database/migrations/001_create_users.sql \
-  < backend/src/database/migrations/002_create_categories.sql \
-  < backend/src/database/migrations/003_create_listings.sql \
-  < backend/src/database/migrations/004_create_listing_images.sql \
-  < backend/src/database/migrations/005_create_favorites.sql \
-  < backend/src/database/migrations/006_create_messages.sql \
-  < backend/src/database/migrations/007_create_reviews.sql
+bash database/scripts/migrate.sh          # applies only pending migrations
+bash database/scripts/migrate.sh --status # shows applied / pending
 ```
+
+Applied migrations are recorded in the `schema_migrations` table, so running
+the script again is safe. Databases created with the old, untracked script
+need a one-time `bash database/scripts/migrate.sh --baseline 008` first (the
+script tells you if so).
 
 ### 3. Seed sample data (optional)
 
 ```bash
-docker exec -i marketplace-db psql -U marketplace -d marketplace_db \
-  < backend/src/database/seeds/seed.sql
+bash database/scripts/seed.sh
 ```
 
 ### 4. Start the backend
 
 ```bash
 cd backend
-cp .env.example .env   # or use existing .env
+cp .env.example .env   # then set JWT_SECRET
 npm install
 npm run start:dev       # Runs on http://localhost:3001
 ```
@@ -122,7 +119,7 @@ npm run dev             # Runs on http://localhost:3000
 
 - **Frontend**: http://localhost:3000
 - **Swagger docs**: http://localhost:3001/api/docs
-- **LAN access**: http://YOUR_IP:3000 (CORS is configured for any origin)
+- **LAN access**: http://YOUR_IP:3000. REST calls go through the Next.js `/api` proxy; for the chat WebSocket add your origin to `CORS_ORIGINS` in `backend/.env` (or set it to `*` while testing)
 
 ---
 
@@ -137,7 +134,7 @@ marketplace-app/
 │   │   ├── common/                 # Shared: pagination DTO, paginate helper
 │   │   ├── database/
 │   │   │   ├── database.module.ts  # TypeORM + PostgreSQL config
-│   │   │   ├── migrations/         # SQL migration files (001–007)
+│   │   │   ├── migrations/         # (see /database/migrations)
 │   │   │   └── seeds/              # Sample data
 │   │   └── modules/
 │   │       ├── auth/               # JWT auth, login, register, guards
@@ -225,7 +222,15 @@ All endpoints are prefixed with `/api`. Protected endpoints require `Authorizati
 
 **Create** body: `{ title, description, price, categoryId, condition?, currency?, locationCity?, locationZip?, isNegotiable?, isShippingAvailable? }`
 
+- `currency`: `SYP` (default) or `USD`. `price` 0 means free.
+- `GET /listings` filters: `q`, `categoryId` (includes subcategories), `currency`, `minPrice`, `maxPrice`, `condition`, `locationCity`, `sortBy`.
+- Seller objects (`listing.user`, and users anywhere else in responses) only contain public fields: `id, username, displayName, avatarUrl, bio, isVerified, createdAt`. Email and phone are only returned to the account owner (`/auth/me`, login, register).
+
 **Status values**: `draft`, `active`, `sold`, `reserved`, `expired`, `removed`
+
+- Owners may set `active`, `reserved` or `sold`. `removed` is reserved for moderators; a removed listing can no longer be edited by its owner.
+- `active`, `reserved` and `sold` listings are public. `draft`, `expired` and `removed` listings return 404 to everyone except the owner (send the token; `GET /listings/:id` accepts an optional `Authorization` header).
+- `DELETE /listings/:id` is a soft delete: the listing disappears everywhere, but conversations about it and their messages are kept (`conversation.listing.deletedAt` is set).
 
 **Condition values**: `new`, `like_new`, `used`, `fair`, `poor`
 
@@ -234,10 +239,15 @@ All endpoints are prefixed with `/api`. Protected endpoints require `Authorizati
 | Method | Endpoint                        | Auth | Description                        |
 | ------ | ------------------------------- | ---- | ---------------------------------- |
 | POST   | `/uploads/listings/:listingId`  | Yes  | Upload image (multipart/form-data) |
-| DELETE | `/uploads/images/:imageId`      | Yes  | Delete an image (owner only)       |
 
-**Upload**: Send `file` field as `multipart/form-data`. Accepts JPEG, PNG, WebP, GIF up to 5 MB.
+Prefer the `/listings/:id/images` endpoints (upload, list, reorder, set cover, delete); `/uploads/listings/:listingId` is a backward-compatible alias for upload.
+
+**Upload**: Send `file` field as `multipart/form-data`. Accepts JPEG, PNG or WebP up to 10 MB, max 15 images per listing.
 Add `?primary=true` query parameter to set as primary image.
+
+- The file type is detected from the bytes (sharp), never from the client's MIME type or filename; anything else is rejected with 400 before it is written to disk.
+- The server stores the original privately and publishes WebP variants (`thumb` 320px, `medium` 900px, `large` 1600px) without EXIF metadata, so a phone photo's GPS position is never exposed. `GET /uploads/listings/<id>/original/...` returns 404.
+- Reorder (`PATCH /listings/:id/images/order`) needs every image ID exactly once.
 
 ### Favorites Module
 
@@ -277,7 +287,9 @@ Add `?primary=true` query parameter to set as primary image.
 | PUT    | `/reviews/:id`               | Yes  | Update your review               |
 | DELETE | `/reviews/:id`               | Yes  | Delete your review               |
 
-**Create review** body: `{ reviewedUserId, listingId?, rating (1-5), title?, body? }`
+**Create review** body: `{ reviewedUserId, listingId, rating (1-5), title?, body? }`
+
+A review is only accepted when the two users have a conversation about `listingId` in which the reviewed user has replied; one review per reviewer, user and listing.
 
 ---
 
@@ -367,7 +379,7 @@ categories
 
 ### Migrations
 
-Migrations are plain SQL files in `backend/src/database/migrations/`, numbered 001–007. They must be run in order against the PostgreSQL database.
+Migrations are plain SQL files in `database/migrations/`, numbered 001–009. `database/scripts/migrate.sh` applies them in order, each once, and records them in `schema_migrations`.
 
 ---
 
@@ -404,16 +416,22 @@ Migrations are plain SQL files in `backend/src/database/migrations/`, numbered 0
 | `POSTGRES_USER`       | `marketplace`         | Database user                  |
 | `POSTGRES_PASSWORD`   | `marketplace_secret`  | Database password              |
 | `POSTGRES_DB`         | `marketplace_db`      | Database name                  |
-| `JWT_SECRET`          | (required)            | Secret for JWT signing         |
+| `JWT_SECRET`          | (required)            | Secret for JWT signing; the API refuses to start without it |
 | `JWT_EXPIRES_IN`      | `7d`                  | Token expiry duration          |
 | `PORT`                | `3001`                | Backend HTTP port              |
 | `NODE_ENV`            | `development`         | Environment                    |
+| `UPLOAD_DIR`          | `./uploads`           | Where uploaded images are stored |
+| `CORS_ORIGINS`        | `http://localhost:3000` | Comma-separated allowed origins (REST + WebSocket); `*` = any |
+| `TRUST_PROXY`         | (unset)               | Proxy hops to trust behind nginx etc., so rate limits see real client IPs |
+| `THROTTLE_LIMIT` / `THROTTLE_AUTH_LIMIT` / `THROTTLE_WRITE_LIMIT` | `300` / `20` / `60` | Requests per minute: any route / login+register / create, upload, message, review. Logged-in users are counted per account, guests per IP |
 
 ### Frontend (`frontend/.env.local`)
 
 | Variable               | Default | Description                          |
 | ---------------------- | ------- | ------------------------------------ |
 | `NEXT_PUBLIC_API_URL`  | `/api`  | API base URL (relative for LAN)      |
+| `NEXT_PUBLIC_BACKEND_URL` | `http://localhost:3001` | Backend URL seen from the browser (images, WebSocket) |
+| `BACKEND_INTERNAL_URL` | `http://localhost:3001` | Target of the `/api` proxy, set at build time |
 
 ---
 

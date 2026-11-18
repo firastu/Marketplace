@@ -113,10 +113,14 @@ CREATE TABLE messages (
 
 ## Security
 
-- JWT is verified on WebSocket handshake — unauthenticated connections are rejected.
+- JWT is verified on WebSocket handshake — unauthenticated connections, and deactivated accounts, are rejected.
+- `joinConversation` checks that the socket's user is the buyer or seller of that conversation and acknowledges with `{ ok: true }` or `{ ok: false, error }`; other users can't subscribe to someone else's chat.
+- User objects in REST and WebSocket payloads (`sender`, `buyer`, `seller`) contain public profile fields only, never email, phone or the password hash.
+- Messages are limited to 5000 characters, and sending is rate-limited per user.
 - `assertParticipant()` ensures only `buyerId` or `sellerId` can read/write messages in a conversation.
 - Users cannot message themselves.
 - One conversation per (listing, buyer, seller) — enforced by unique constraint.
+- New conversations can only be started on `active` or `reserved` listings. Deleting a listing is a soft delete, so existing conversations and their messages remain.
 
 ## Future Improvements
 

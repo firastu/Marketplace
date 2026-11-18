@@ -1,6 +1,6 @@
 # Marketplace App
 
-A production-oriented marketplace application (similar to eBay Kleinanzeigen) built with a modular, scalable architecture designed to support web, Android, and iOS.
+A production-oriented classifieds marketplace for Syria (similar to eBay Kleinanzeigen) built with a modular, scalable architecture designed to support web, Android, and iOS. Prices are in Syrian pounds (SYP) or US dollars (USD).
 
 ## Tech Stack
 
@@ -35,8 +35,8 @@ marketplace-app/
 ### 1. Start PostgreSQL
 
 ```bash
-cd marketplace-app
-docker compose up -d
+cp .env.example .env      # optional: database settings for compose + scripts
+docker compose up -d      # starts PostgreSQL only, on localhost:5433
 ```
 
 Verify it's running:
@@ -47,17 +47,21 @@ docker compose ps
 ### 2. Run Database Migrations
 
 ```bash
-# Apply all migration files
+# Apply pending migrations (tracked in schema_migrations, safe to re-run)
 bash database/scripts/migrate.sh
 
-# Seed categories and demo data
+# Seed categories and demo data (once, on a fresh database)
 bash database/scripts/seed.sh
 ```
+
+Requires `psql` on your machine. If your database was migrated with the old
+script (before migration tracking), run `bash database/scripts/migrate.sh --baseline 008` once.
 
 ### 3. Start the Backend
 
 ```bash
 cd backend
+cp .env.example .env      # then set JWT_SECRET (openssl rand -hex 32)
 npm install
 npm run start:dev
 ```
@@ -69,19 +73,48 @@ Swagger docs at **http://localhost:3001/api/docs**
 
 ```bash
 cd frontend
+cp .env.example .env.local
 npm install
 npm run dev
 ```
 
 The web app will be available at **http://localhost:3000**
 
+### Run everything in Docker instead
+
+```bash
+cp .env.example .env      # set JWT_SECRET
+docker compose --profile app up -d --build
+```
+
+This starts PostgreSQL, runs the migrations once, then the API (port 3001)
+and the web app (port 3000). Uploaded images are kept in the `uploads` volume.
+
+## Tests & checks
+
+```bash
+cd backend
+npm run lint && npm run typecheck
+npm test              # unit tests
+npm run test:e2e      # end-to-end tests against a real PostgreSQL
+
+cd ../frontend
+npm run lint && npm run typecheck && npm run build
+```
+
+The e2e suite needs the database from step 1 running. It creates, drops and
+recreates its own `marketplace_test` database (it refuses to run against a
+database whose name doesn't end in `_test`). CI (`.github/workflows/ci.yml`)
+runs all of the above plus the migration scripts and both Docker builds.
+
 ## Database Management
 
 | Command | Description |
 |---|---|
-| `bash database/scripts/migrate.sh` | Run all migrations |
+| `bash database/scripts/migrate.sh` | Apply pending migrations |
+| `bash database/scripts/migrate.sh --status` | List applied / pending migrations |
 | `bash database/scripts/seed.sh` | Seed categories + demo data |
-| `bash database/scripts/reset_db.sh` | Drop and recreate the database |
+| `bash database/scripts/reset_db.sh` | Drop and recreate the database (`--yes` skips the prompt) |
 
 ### Connect with DBeaver / pgAdmin
 
@@ -141,6 +174,16 @@ The web app will be available at **http://localhost:3000**
 - [x] Messages (conversations + WebSocket gateway)
 - [x] Reviews backend
 - [x] Sample image data (generate-samples.js + seed)
+
+### Hardening ✅ (security & correctness pass)
+- [x] Public responses never contain password hashes, emails or phone numbers (REST and WebSocket)
+- [x] Image cover / reorder / 15-image limit fixed; uploads validated from the actual bytes; originals private, EXIF/GPS stripped from public images
+- [x] Listing delete is a soft delete (chats are kept); drafts/removed listings hidden from non-owners; owners can't set `removed`
+- [x] WebSocket rooms only joinable by conversation participants; deactivated accounts are locked out
+- [x] Reviews only after a real conversation; message length limit
+- [x] Rate limiting (per user when logged in, per IP for guests), security headers, CORS allowlist
+- [x] SYP / USD currencies, Arabic-friendly slugs, category filter includes subcategories
+- [x] Tracked migrations, Dockerfiles + compose profile, CI, unit + e2e tests
 
 ### Phase 2 (In Progress)
 - [ ] Favorites UI (heart button on listing cards + /favorites page)
