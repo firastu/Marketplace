@@ -23,6 +23,7 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
   const errorText = useErrorText();
 
   const [form, setForm] = useState({ displayName: '', username: '', email: '', password: '' });
+  const [acceptTerms, setAcceptTerms] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -38,10 +39,14 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
+    if (!isLogin && !acceptTerms) {
+      setError(t('consentRequired'));
+      return;
+    }
     setSubmitting(true);
     try {
       if (isLogin) await login(form.email, form.password);
-      else await register(form);
+      else await register({ ...form, acceptTerms: true });
     } catch (err) {
       setError(errorText(err, isLogin ? t('loginFailed') : t('registerFailed')));
       setSubmitting(false);
@@ -141,6 +146,38 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
                 </button>
               </span>
             </Field>
+
+            {isLogin ? (
+              <p className={styles.forgot}>
+                <Link href="/forgot-password" className="link">
+                  {t('forgot')}
+                </Link>
+              </p>
+            ) : (
+              <label className={`check ${styles.consent}`} htmlFor="acceptTerms">
+                <input
+                  id="acceptTerms"
+                  type="checkbox"
+                  checked={acceptTerms}
+                  onChange={(e) => setAcceptTerms(e.target.checked)}
+                  required
+                />
+                <span>
+                  {t.rich('consent', {
+                    terms: (chunks) => (
+                      <Link href="/terms" className="link" target="_blank">
+                        {chunks}
+                      </Link>
+                    ),
+                    privacy: (chunks) => (
+                      <Link href="/privacy" className="link" target="_blank">
+                        {chunks}
+                      </Link>
+                    ),
+                  })}
+                </span>
+              </label>
+            )}
 
             <Button type="submit" variant="accent" size="lg" block loading={submitting}>
               {isLogin ? t('loginSubmit') : t('registerSubmit')}
