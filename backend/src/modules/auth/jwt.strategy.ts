@@ -3,11 +3,14 @@ import { PassportStrategy } from "@nestjs/passport";
 import { ExtractJwt, Strategy } from "passport-jwt";
 import { ConfigService } from "@nestjs/config";
 import { UsersService } from "../users/users.service";
+import { isTokenCurrent } from "./token-validity";
 
 export interface JwtPayload {
   sub: string;
   email: string;
   role: string;
+  /** Account token version at issue time (see isTokenCurrent). */
+  tv?: number;
 }
 
 export interface AuthUser {
@@ -32,16 +35,17 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   /**
-   * Re-reads the user on every request so that deactivating an account (or
-   * changing its role) takes effect immediately instead of when the
-   * 7-day token expires.
+   * Re-reads the user on every request so that deactivating or deleting an
+   * account, changing its role, or changing its password (which signs out
+   * other sessions) takes effect immediately instead of when the 7-day
+   * token expires.
    */
   async validate(payload: JwtPayload): Promise<AuthUser> {
     const user = await this.usersService
       .findById(payload.sub)
       .catch(() => null);
-    if (!user || !user.isActive) {
-      throw new UnauthorizedException("Account not found or deactivated");
+    if (!user || !isTokenCurrent(user, payload.tv)) {
+      throw new UnauthorizedException("Session expired or account unavailable");
     }
     return { id: user.id, email: user.email, role: user.role };
   }

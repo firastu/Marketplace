@@ -50,7 +50,13 @@ export class TestApp {
     const email = `${n}@test.dev`;
     const res = await this.http()
       .post("/api/auth/register")
-      .send({ email, username: n, password: "password123", displayName: n })
+      .send({
+        email,
+        username: n,
+        password: "password123",
+        displayName: n,
+        acceptTerms: true,
+      })
       .expect(201);
     return {
       id: res.body.user.id,

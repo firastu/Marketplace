@@ -17,6 +17,7 @@ describe("Robustness: races, odd input and stale data", () => {
         email: "race@test.dev",
         username: "raceuser",
         password: "password123",
+        acceptTerms: true,
       };
       const responses = await Promise.all(
         [1, 2, 3].map(() => t.http().post("/api/auth/register").send(body)),

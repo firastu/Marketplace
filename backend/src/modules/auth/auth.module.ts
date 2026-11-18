@@ -7,12 +7,15 @@ import { AuthController } from "./auth.controller";
 import { AuthService } from "./auth.service";
 import { JwtStrategy } from "./jwt.strategy";
 import { JwtAuthGuard } from "./jwt-auth.guard";
+import { TypeOrmModule } from "@nestjs/typeorm";
 import { UsersModule } from "../users/users.module";
+import { PasswordResetToken } from "./password-reset-token.entity";
 import { UserAwareThrottlerGuard } from "../../common/throttle";
 
 @Module({
   imports: [
     UsersModule,
+    TypeOrmModule.forFeature([PasswordResetToken]),
     PassportModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],

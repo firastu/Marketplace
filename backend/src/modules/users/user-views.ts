@@ -20,6 +20,8 @@ export interface SelfUser extends PublicUser {
   phone: string | null;
   role: string;
   lastLoginAt: Date | null;
+  termsAcceptedAt: Date | null;
+  termsVersion: string | null;
   updatedAt: Date;
 }
 
@@ -42,6 +44,8 @@ export function toSelfUser(user: User): SelfUser {
     phone: user.phone ?? null,
     role: user.role,
     lastLoginAt: user.lastLoginAt ?? null,
+    termsAcceptedAt: user.termsAcceptedAt ?? null,
+    termsVersion: user.termsVersion ?? null,
     updatedAt: user.updatedAt,
   };
 }

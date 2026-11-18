@@ -23,6 +23,6 @@ import { AuthModule } from "../auth/auth.module";
   ],
   controllers: [MessagesController],
   providers: [MessagesService, MessagesGateway],
-  exports: [MessagesService],
+  exports: [MessagesService, MessagesGateway],
 })
 export class MessagesModule {}

@@ -47,6 +47,37 @@ export class User {
   @Column({ name: "last_login_at", type: "timestamptz", nullable: true })
   lastLoginAt: Date;
 
+  /** When the user accepted the Terms / Privacy Policy, and which version. */
+  @Column({ name: "terms_accepted_at", type: "timestamptz", nullable: true })
+  termsAcceptedAt: Date | null;
+
+  @Column({
+    name: "terms_version",
+    type: "varchar",
+    length: 20,
+    nullable: true,
+  })
+  termsVersion: string | null;
+
+  /**
+   * Copied into every token; incremented on password change/reset and
+   * account deletion, which invalidates all earlier tokens.
+   */
+  @Column({ name: "token_version", type: "int", default: 0 })
+  tokenVersion: number;
+
+  /** When the password was last changed (informational). */
+  @Column({ name: "password_changed_at", type: "timestamptz", nullable: true })
+  passwordChangedAt: Date | null;
+
+  /**
+   * Set when the user deleted their account (personal data erased). A plain
+   * column on purpose: a @DeleteDateColumn would drop these users from
+   * relation joins, leaving their old chat messages without a sender.
+   */
+  @Column({ name: "deleted_at", type: "timestamptz", nullable: true })
+  deletedAt: Date | null;
+
   @CreateDateColumn({ name: "created_at", type: "timestamptz" })
   createdAt: Date;
 

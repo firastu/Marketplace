@@ -190,15 +190,41 @@ All endpoints are prefixed with `/api`. Protected endpoints require `Authorizati
 
 | Method | Endpoint           | Auth | Description                    |
 | ------ | ------------------ | ---- | ------------------------------ |
-| POST   | `/auth/register`   | No   | Register a new user            |
+| POST   | `/auth/register`   | No   | Register a new user (must accept the terms) |
 | POST   | `/auth/login`      | No   | Login, returns JWT + user      |
+| POST   | `/auth/forgot-password` | No | Email a password reset link |
+| POST   | `/auth/reset-password`  | No | Set a new password with the link's token |
 | GET    | `/auth/me`         | Yes  | Get current user profile       |
 
 **Errors**: besides the usual 400 (validation), 401, 403 and 404, the API answers **409** when something already exists (email, username, favorite, review), also when two identical requests race each other, and **400** for text PostgreSQL cannot store (e.g. a NUL character).
 
-**Register** body: `{ username, email, password, displayName? }`
+**Register** body: `{ username, email, password, displayName?, acceptTerms: true }`. `acceptTerms` must be `true`; the server records `termsAcceptedAt` and `termsVersion` (see `backend/src/common/terms.ts`), which are returned with the user's own account.
 **Login** body: `{ email, password }`
 **Response**: `{ user: {...}, accessToken: "jwt..." }`
+
+**Password reset**
+- `POST /auth/forgot-password` `{ email, locale?: "ar" | "en" }` always answers `200` with the same message, whether or not the email has an account. If it does (and is active), it emails one bilingual link to `${APP_URL}/reset-password?token=…` (`/en/reset-password` for `locale: "en"`), valid 60 minutes, single use; only a SHA-256 hash of the token is stored, and a new request replaces older links.
+- `POST /auth/reset-password` `{ token, password }` → `200`, or `400 "This reset link is invalid or has expired"`.
+- Email goes through SMTP (`SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM`). Without `SMTP_HOST` the email is written to the backend log instead.
+
+**Sessions**: every token carries the account's token version. Resetting or changing the password, or deleting the account, increments it, which signs out every other session immediately (REST and WebSocket).
+
+### Account Module (the logged-in user's own data, GDPR)
+
+| Method | Endpoint                 | Auth | Description |
+| ------ | ------------------------ | ---- | ----------- |
+| PATCH  | `/users/me`              | Yes  | Edit display name, bio, phone (`null`/`""` clears; phone in international format) |
+| POST   | `/users/me/password`     | Yes  | `{ currentPassword, newPassword }` → `{ accessToken }`; other sessions are signed out |
+| GET    | `/users/me/export`       | Yes  | Download all stored data as JSON (profile, listings, favorites, conversations with messages, reviews) |
+| DELETE | `/users/me`              | Yes  | `{ password }` → erases the account (see below) |
+
+**Account deletion**: email, username, display name, phone, bio and avatar are replaced or cleared and the account can't log in again; its listings are deleted and their photos removed from disk; favorites and reviews it wrote are deleted; open chat connections are closed. Messages stay visible to the other person, with the sender shown as `deleted-…`. The email becomes free for a new registration. `GET /users/:id` of a deleted account is 404.
+
+**Retention**: a daily job removes photos of listings deleted more than `LISTING_RETENTION_DAYS` (default 30) days ago and purges expired or used reset tokens. Listings removed by moderators keep their photos.
+
+**API docs**: Swagger at `/api/docs` is available outside production; in production only with `ENABLE_SWAGGER=true`.
+
+**Server-side rendering**: requests with header `X-Internal-Key` equal to `INTERNAL_API_KEY` (at least 32 characters) skip rate limiting. Only the web app's server sends it.
 
 ### Users Module
 
