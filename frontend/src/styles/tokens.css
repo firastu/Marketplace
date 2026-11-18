@@ -1,0 +1,193 @@
+/*
+ * Design tokens. Everything visual is derived from these custom properties;
+ * components never use raw colours, sizes or timings.
+ *
+ * Identity: "limestone, ink and apricot". Warm stone surfaces, a deep
+ * aubergine ink for text and primary actions, and one ripe apricot accent
+ * for the actions that move a sale forward (Sell, Contact).
+ */
+
+@font-face {
+  font-family: 'Readex Pro';
+  font-style: normal;
+  font-weight: 160 700;
+  font-display: swap;
+  src: url('../fonts/ReadexPro-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304,
+    U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* Only downloaded when a page actually contains Arabic text. */
+@font-face {
+  font-family: 'Readex Pro';
+  font-style: normal;
+  font-weight: 160 700;
+  font-display: swap;
+  src: url('../fonts/ReadexPro-arabic.woff2') format('woff2');
+  unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1, U+08E3-08FF,
+    U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC;
+}
+
+:root {
+  color-scheme: light dark;
+
+  /* ── Colour: surfaces ─────────────────────────────── */
+  --bg: #f7f3ec;
+  --surface: #fffdfa;
+  --surface-sunken: #f0e9de;
+  --surface-raised: #ffffff;
+  --overlay: rgb(27 23 48 / 0.55);
+
+  /* ── Colour: text ─────────────────────────────────── */
+  --ink: #1b1730;
+  --ink-2: #47425c;
+  --ink-3: #6a657e;
+  --ink-inverse: #fffdfa;
+
+  /* ── Colour: lines ────────────────────────────────── */
+  --line: #e7dfd2;
+  --line-strong: #cdc2b1;
+
+  /* ── Colour: brand ────────────────────────────────── */
+  --brand: #2a2147;
+  --brand-hover: #3b3061;
+  --on-brand: #fffdfa;
+  --accent: #f4a340;
+  --accent-hover: #ee9226;
+  --accent-soft: #fdecd2;
+  --accent-ink: #8f4a00; /* accent as text on light surfaces (AA) */
+  --on-accent: #2a1a05;
+  --focus: #5b45d6;
+
+  /* ── Colour: meaning ──────────────────────────────── */
+  --rose: #d23c66;
+  --rose-soft: #fbe3ea;
+  --on-rose: #ffffff;
+  --success: #1c7448;
+  --success-soft: #dcf1e5;
+  --warning: #8a5700;
+  --warning-soft: #fcefc9;
+  --danger: #b3261e;
+  --danger-hover: #981f18;
+  --danger-soft: #fde5e2;
+  --info: #2c5aa8;
+  --info-soft: #e1ebfa;
+
+  /* ── Type ─────────────────────────────────────────── */
+  --font-sans: 'Readex Pro', 'Noto Sans Arabic', 'Segoe UI', system-ui, -apple-system, Roboto,
+    'Helvetica Neue', Arial, sans-serif;
+  --text-xs: 0.75rem;
+  --text-sm: 0.8125rem;
+  --text-md: 0.9375rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.375rem;
+  --text-2xl: 1.75rem;
+  --text-3xl: clamp(1.875rem, 1.2rem + 3vw, 2.75rem);
+  --leading-tight: 1.25;
+  --leading-normal: 1.6; /* Arabic needs the extra room */
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-bold: 650;
+  --tracking-tight: -0.015em;
+
+  /* ── Space (4px grid) ─────────────────────────────── */
+  --s-1: 0.25rem;
+  --s-2: 0.5rem;
+  --s-3: 0.75rem;
+  --s-4: 1rem;
+  --s-5: 1.25rem;
+  --s-6: 1.5rem;
+  --s-8: 2rem;
+  --s-10: 2.5rem;
+  --s-12: 3rem;
+  --s-16: 4rem;
+
+  /* ── Shape ────────────────────────────────────────── */
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-xl: 24px;
+  --r-pill: 999px;
+
+  /* ── Elevation ────────────────────────────────────── */
+  --e-1: 0 1px 2px rgb(27 23 48 / 0.06), 0 1px 1px rgb(27 23 48 / 0.04);
+  --e-2: 0 8px 20px -6px rgb(27 23 48 / 0.14), 0 2px 6px -2px rgb(27 23 48 / 0.08);
+  --e-3: 0 24px 48px -12px rgb(27 23 48 / 0.28), 0 8px 16px -8px rgb(27 23 48 / 0.16);
+
+  /* ── Motion ───────────────────────────────────────── */
+  --dur-1: 120ms;
+  --dur-2: 200ms;
+  --dur-3: 320ms;
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  /* ── Layout ───────────────────────────────────────── */
+  --container: 1200px;
+  --gutter: var(--s-4);
+  --header-h: 56px;
+  --bottom-nav-h: 60px;
+  --touch: 44px;
+  --z-header: 30;
+  --z-bar: 40;
+  --z-toast: 70;
+}
+
+@media (min-width: 768px) {
+  :root {
+    --gutter: var(--s-6);
+    --header-h: 64px;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #121021;
+    --surface: #1b1830;
+    --surface-sunken: #16132a;
+    --surface-raised: #24203c;
+    --overlay: rgb(5 4 12 / 0.7);
+
+    --ink: #f4efe7;
+    --ink-2: #cbc5d8;
+    --ink-3: #a09ab3;
+    --ink-inverse: #1b1730;
+
+    --line: #2f2a48;
+    --line-strong: #4a4369;
+
+    --brand: #f4efe7;
+    --brand-hover: #ffffff;
+    --on-brand: #1b1730;
+    --accent: #f4a340;
+    --accent-hover: #f8b35f;
+    --accent-soft: #3b2b17;
+    --accent-ink: #f6b565;
+    --on-accent: #2a1a05;
+    --focus: #a99bff;
+
+    --rose: #f0718f;
+    --rose-soft: #3c1c29;
+    --on-rose: #2a0d17;
+    --success: #6fd09c;
+    --success-soft: #16301f;
+    --warning: #f0c060;
+    --warning-soft: #33280f;
+    --danger: #ff8a80;
+    --danger-hover: #ffa49c;
+    --danger-soft: #3a1917;
+    --info: #8fb5f5;
+    --info-soft: #17243d;
+
+    --e-1: 0 1px 2px rgb(0 0 0 / 0.4);
+    --e-2: 0 8px 20px -6px rgb(0 0 0 / 0.55);
+    --e-3: 0 24px 48px -12px rgb(0 0 0 / 0.7);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-1: 0.01ms;
+    --dur-2: 0.01ms;
+    --dur-3: 0.01ms;
+  }
+}

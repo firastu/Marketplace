@@ -1,4 +1,4 @@
-import { apiClient } from './api-client';
+import { apiClient, uploadWithProgress } from './api-client';
 import type { Currency } from '@/utils/format';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001';
@@ -37,10 +37,22 @@ export interface Listing {
   isNegotiable: boolean;
   viewsCount: number;
   createdAt: string;
+  categoryId: string;
+  userId: string;
   images: ListingImage[];
-  category: { id: string; name: string; slug: string };
+  category?: { id: string; name: string; slug: string; icon?: string | null };
   /** Public seller profile only; contact details are never sent. */
-  user: { id: string; username: string; displayName: string | null };
+  user?: PublicUser;
+}
+
+export interface PublicUser {
+  id: string;
+  username: string;
+  displayName: string | null;
+  avatarUrl?: string | null;
+  bio?: string | null;
+  isVerified?: boolean;
+  createdAt?: string;
 }
 
 export interface PaginatedListings {
@@ -57,6 +69,7 @@ export interface ListingSearchParams {
   maxPrice?: number;
   condition?: string;
   locationCity?: string;
+  userId?: string;
   currency?: Currency;
   sortBy?: 'newest' | 'price_asc' | 'price_desc';
 }
@@ -91,6 +104,12 @@ export function getImageUrl(image: ListingImage, variant: 'thumb' | 'medium' | '
     large: image.storageKeyLarge,
   };
   return buildImageUrl(variantMap[variant] ?? null, image.url);
+}
+
+/** thumb (320w) and medium (900w), for responsive <img srcSet>. */
+export function getImageSrcSet(image: ListingImage): string | undefined {
+  if (!image.storageKeyThumb || !image.storageKeyMedium) return undefined;
+  return `${getImageUrl(image, 'thumb')} 320w, ${getImageUrl(image, 'medium')} 900w`;
 }
 
 export function getPrimaryImage(images: ListingImage[]): ListingImage | null {
@@ -129,6 +148,20 @@ export function createListing(data: CreateListingData): Promise<Listing> {
   return apiClient<Listing>('/listings', { method: 'POST', body: data, auth: true });
 }
 
+export function updateListing(id: string, data: Partial<CreateListingData>): Promise<Listing> {
+  return apiClient<Listing>(`/listings/${id}`, { method: 'PUT', body: data, auth: true });
+}
+
+export type OwnerStatus = 'active' | 'reserved' | 'sold';
+
+export function updateListingStatus(id: string, status: OwnerStatus): Promise<Listing> {
+  return apiClient<Listing>(`/listings/${id}/status`, {
+    method: 'PATCH',
+    body: { status },
+    auth: true,
+  });
+}
+
 export function deleteListing(id: string): Promise<void> {
   return apiClient<void>(`/listings/${id}`, { method: 'DELETE', auth: true });
 }
@@ -137,17 +170,22 @@ export function getListingImages(listingId: string): Promise<ListingImage[]> {
   return apiClient<ListingImage[]>(`/listings/${listingId}/images`, { auth: true });
 }
 
+/**
+ * Uploads one photo and reports progress (0..1) while the bytes go out.
+ * The API reads `primary` from the query string, not the form body.
+ */
 export function uploadImage(
   listingId: string,
-  file: File,
-  isPrimary = false,
+  file: Blob,
+  options: { isPrimary?: boolean; onProgress?: (fraction: number) => void; signal?: AbortSignal } = {},
 ): Promise<ListingImage> {
   const formData = new FormData();
-  formData.append('file', file);
-  // The API reads `primary` from the query string, not the form body.
-  return apiClient<ListingImage>(
-    `/listings/${listingId}/images${isPrimary ? '?primary=true' : ''}`,
-    { method: 'POST', body: formData, auth: true, multipart: true },
+  formData.append('file', file, (file as File).name || 'photo.jpg');
+  return uploadWithProgress<ListingImage>(
+    `/listings/${listingId}/images${options.isPrimary ? '?primary=true' : ''}`,
+    formData,
+    options.onProgress,
+    options.signal,
   );
 }
 

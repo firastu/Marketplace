@@ -1,0 +1,79 @@
+.wrap {
+  display: grid;
+  place-items: start center;
+  flex: 1;
+  padding-block: var(--s-6) var(--s-12);
+}
+
+.card {
+  inline-size: 100%;
+  max-inline-size: 26rem;
+  border: 1px solid var(--line);
+  border-radius: var(--r-xl);
+  background: var(--surface);
+  box-shadow: var(--e-2);
+  overflow: hidden;
+}
+
+.card > :first-child {
+  border-radius: 0;
+}
+
+.inner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  padding: var(--s-6) var(--s-5) var(--s-6);
+}
+
+@media (min-width: 560px) {
+  .wrap {
+    place-items: center;
+  }
+
+  .inner {
+    padding: var(--s-8);
+  }
+}
+
+.title {
+  font-size: var(--text-2xl);
+  letter-spacing: -0.03em;
+}
+
+.lead {
+  margin-block-start: calc(var(--s-2) * -1);
+  color: var(--ink-2);
+  font-size: var(--text-md);
+}
+
+.password {
+  position: relative;
+  display: block;
+}
+
+.password input {
+  padding-inline-end: var(--s-12);
+}
+
+.reveal {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: 0;
+  display: grid;
+  place-items: center;
+  inline-size: var(--touch);
+  color: var(--ink-3);
+  border-radius: var(--r-md);
+}
+
+.reveal svg {
+  inline-size: 1.2rem;
+  block-size: 1.2rem;
+}
+
+.switch {
+  text-align: center;
+  color: var(--ink-2);
+  font-size: var(--text-md);
+}

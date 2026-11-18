@@ -1,36 +1,36 @@
 'use client';
 
-import { useEffect, useMemo, useState, useCallback, Suspense } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
-  getListings,
-  getImageUrl,
-  Listing,
-  PaginatedListings,
-  ListingSearchParams,
-} from '@/services';
-import { getCategories, Category } from '@/services/categories.service';
-import { CURRENCIES, Currency, formatPrice } from '@/utils/format';
-
-const CONDITIONS = [
-  { value: '', label: 'Any condition' },
-  { value: 'new', label: 'New' },
-  { value: 'like_new', label: 'Like New' },
-  { value: 'used', label: 'Used' },
-  { value: 'fair', label: 'Fair' },
-  { value: 'poor', label: 'Poor' },
-];
-
-const SORT_OPTIONS = [
-  { value: 'newest', label: 'Newest first' },
-  { value: 'price_asc', label: 'Price: Low to High' },
-  { value: 'price_desc', label: 'Price: High to Low' },
-];
-
-function flatCategories(cats: Category[]): Category[] {
-  return cats.flatMap((c) => [c, ...flatCategories(c.children || [])]);
-}
+  ChevronLeft,
+  ChevronRight,
+  LayoutGrid,
+  Search,
+  SearchX,
+  SlidersHorizontal,
+  WifiOff,
+  X,
+} from 'lucide-react';
+import { getListings, ListingSearchParams, PaginatedListings } from '@/services';
+import { Category, getCategories } from '@/services/categories.service';
+import {
+  CITIES,
+  CONDITIONS,
+  conditionLabel,
+  CURRENCIES,
+  Currency,
+  SORT_OPTIONS,
+} from '@/utils/format';
+import { SITE_TAGLINE } from '@/config/site';
+import { CategoryIcon } from '@/components/CategoryIcon';
+import { ListingCard, ListingGrid, ListingGridSkeleton } from '@/components/ListingCard';
+import { Button } from '@/components/ui/Button';
+import { Dialog } from '@/components/ui/Dialog';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { Field, Input, Select } from '@/components/ui/Field';
+import styles from './page.module.css';
 
 const FILTER_KEYS = [
   'q',
@@ -39,23 +39,147 @@ const FILTER_KEYS = [
   'maxPrice',
   'condition',
   'currency',
+  'locationCity',
   'sortBy',
 ] as const;
 type FilterKey = (typeof FILTER_KEYS)[number];
 type Filters = Record<FilterKey, string>;
+type DraftKey = 'minPrice' | 'maxPrice' | 'locationCity';
 
 type Result =
   | { key: string; data: PaginatedListings; error?: undefined }
   | { key: string; data?: undefined; error: string };
 
+interface FilterFieldsProps {
+  idPrefix: string;
+  filters: Filters;
+  categories: Category[];
+  drafts: Record<DraftKey, string>;
+  setDraft: (key: DraftKey, value: string) => void;
+  commitDraft: (key: DraftKey) => void;
+  onChange: (changed: Partial<Filters>) => void;
+}
+
+/** The filter controls, shown in the desktop sidebar and the phone sheet. */
+function FilterFields({
+  idPrefix,
+  filters,
+  categories,
+  drafts,
+  setDraft,
+  commitDraft,
+  onChange,
+}: FilterFieldsProps) {
+  const id = (name: string) => `${idPrefix}-${name}`;
+  const draftProps = (key: DraftKey) => ({
+    value: drafts[key],
+    onChange: (e: React.ChangeEvent<HTMLInputElement>) => setDraft(key, e.target.value),
+    onBlur: () => commitDraft(key),
+    onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'Enter') commitDraft(key);
+    },
+  });
+
+  return (
+    <div className={styles.filterFields}>
+      <Field label="Category" htmlFor={id('category')}>
+        <Select
+          id={id('category')}
+          value={filters.categoryId}
+          onChange={(e) => onChange({ categoryId: e.target.value })}
+        >
+          <option value="">All categories</option>
+          {categories.map((root) => (
+            <optgroup key={root.id} label={root.name}>
+              <option value={root.id}>All in {root.name}</option>
+              {(root.children ?? []).map((child) => (
+                <option key={child.id} value={child.id}>
+                  {child.name}
+                </option>
+              ))}
+            </optgroup>
+          ))}
+        </Select>
+      </Field>
+
+      <Field label="City" htmlFor={id('city')}>
+        <Input
+          id={id('city')}
+          list={id('cities')}
+          placeholder="Anywhere in Syria"
+          maxLength={100}
+          autoComplete="off"
+          {...draftProps('locationCity')}
+        />
+        <datalist id={id('cities')}>
+          {CITIES.map((city) => (
+            <option key={city} value={city} />
+          ))}
+        </datalist>
+      </Field>
+
+      <div className={styles.priceRow}>
+        <Field label="Min price" htmlFor={id('min')}>
+          <Input
+            id={id('min')}
+            type="number"
+            inputMode="decimal"
+            min="0"
+            placeholder="0"
+            {...draftProps('minPrice')}
+          />
+        </Field>
+        <Field label="Max price" htmlFor={id('max')}>
+          <Input
+            id={id('max')}
+            type="number"
+            inputMode="decimal"
+            min="0"
+            placeholder="Any"
+            {...draftProps('maxPrice')}
+          />
+        </Field>
+      </div>
+
+      <Field label="Currency" htmlFor={id('currency')}>
+        <Select
+          id={id('currency')}
+          value={filters.currency}
+          onChange={(e) => onChange({ currency: e.target.value })}
+        >
+          <option value="">Any currency</option>
+          {CURRENCIES.map((c) => (
+            <option key={c.value} value={c.value}>
+              {c.label}
+            </option>
+          ))}
+        </Select>
+      </Field>
+
+      <Field label="Condition" htmlFor={id('condition')}>
+        <Select
+          id={id('condition')}
+          value={filters.condition}
+          onChange={(e) => onChange({ condition: e.target.value })}
+        >
+          <option value="">Any condition</option>
+          {CONDITIONS.map((c) => (
+            <option key={c.value} value={c.value}>
+              {c.label}
+            </option>
+          ))}
+        </Select>
+      </Field>
+    </div>
+  );
+}
+
 function HomePageInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
-  // The URL is the single source of truth for what is shown. The filters
-  // used to be copied into component state once, on mount, so the Back
-  // button, the "Browse" link and links from the Categories page changed
-  // the address bar but not the results.
+  // The URL is the single source of truth for what is shown: Back/Forward,
+  // shared links and the category pages all just change the query string.
   const urlKey = searchParams.toString();
   const filters = useMemo(() => {
     const params = new URLSearchParams(urlKey);
@@ -68,29 +192,35 @@ function HomePageInner() {
     const parsed = parseInt(new URLSearchParams(urlKey).get('page') || '1', 10);
     return Number.isInteger(parsed) && parsed > 0 ? parsed : 1;
   }, [urlKey]);
-  const { categoryId, condition, currency, sortBy } = filters;
 
   const [result, setResult] = useState<Result | null>(null);
   const [retry, setRetry] = useState(0);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [showFilters, setShowFilters] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
 
-  // Text inputs are drafts: they are applied on submit / blur, not on
-  // every keystroke (which sent one request and one history entry per
-  // character), and follow the URL when it changes.
+  // Text inputs are drafts: applied on submit / blur / Enter, not on every
+  // keystroke, and reset whenever the URL changes.
   const [search, setSearch] = useState(filters.q);
-  const [minPrice, setMinPrice] = useState(filters.minPrice);
-  const [maxPrice, setMaxPrice] = useState(filters.maxPrice);
+  const [drafts, setDrafts] = useState<Record<DraftKey, string>>({
+    minPrice: filters.minPrice,
+    maxPrice: filters.maxPrice,
+    locationCity: filters.locationCity,
+  });
   const [syncedKey, setSyncedKey] = useState(urlKey);
   if (syncedKey !== urlKey) {
     setSyncedKey(urlKey);
     setSearch(filters.q);
-    setMinPrice(filters.minPrice);
-    setMaxPrice(filters.maxPrice);
+    setDrafts({
+      minPrice: filters.minPrice,
+      maxPrice: filters.maxPrice,
+      locationCity: filters.locationCity,
+    });
   }
 
   useEffect(() => {
-    getCategories().then(setCategories).catch(() => {});
+    getCategories()
+      .then(setCategories)
+      .catch(() => {});
   }, []);
 
   const requestKey = `${urlKey}#${retry}`;
@@ -105,6 +235,7 @@ function HomePageInner() {
       minPrice: filters.minPrice ? Number(filters.minPrice) : undefined,
       maxPrice: filters.maxPrice ? Number(filters.maxPrice) : undefined,
       condition: filters.condition || undefined,
+      locationCity: filters.locationCity || undefined,
       currency: (filters.currency || undefined) as Currency | undefined,
       sortBy: filters.sortBy as ListingSearchParams['sortBy'],
     };
@@ -135,8 +266,9 @@ function HomePageInner() {
         ...filters,
         // drafts the user typed but has not applied yet
         q: search.trim(),
-        minPrice,
-        maxPrice,
+        minPrice: drafts.minPrice,
+        maxPrice: drafts.maxPrice,
+        locationCity: drafts.locationCity.trim(),
         page,
         ...overrides,
       };
@@ -150,350 +282,339 @@ function HomePageInner() {
       const query = params.toString();
       return query ? `/?${query}` : '/';
     },
-    [filters, search, minPrice, maxPrice, page],
+    [filters, search, drafts, page],
   );
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     router.push(buildUrl({ page: 1 }));
   };
-
-  const handleFilterChange = (changed: Record<string, string>) => {
-    router.push(buildUrl({ ...changed, page: 1 }));
+  const changeFilters = (changed: Partial<Filters>) => {
+    router.push(buildUrl({ ...changed, page: 1 }), { scroll: false });
   };
-
-  /** Apply a typed price when leaving the field or pressing Enter. */
-  const commitPrice = (key: 'minPrice' | 'maxPrice', value: string) => {
-    if (value !== filters[key]) handleFilterChange({ [key]: value });
+  const setDraft = (key: DraftKey, value: string) =>
+    setDrafts((prev) => ({ ...prev, [key]: value }));
+  const commitDraft = (key: DraftKey) => {
+    const value = drafts[key].trim();
+    if (value !== filters[key]) changeFilters({ [key]: value });
   };
-  const commitOnEnter =
-    (key: 'minPrice' | 'maxPrice') => (e: React.KeyboardEvent<HTMLInputElement>) => {
-      if (e.key === 'Enter') commitPrice(key, e.currentTarget.value);
-    };
+  const clearFilters = () => router.push('/');
 
-  const handlePage = (newPage: number) => {
-    router.push(buildUrl({ page: newPage }));
+  // ── Derived display data ──────────────────────────────
+  const categoryById = useMemo(() => {
+    const map = new Map<string, { category: Category; rootId: string }>();
+    for (const root of categories) {
+      map.set(root.id, { category: root, rootId: root.id });
+      for (const child of root.children ?? []) {
+        map.set(child.id, { category: child, rootId: root.id });
+      }
+    }
+    return map;
+  }, [categories]);
+  const activeRootId = categoryById.get(filters.categoryId)?.rootId ?? '';
+
+  const chips: { key: string; label: string; clear: Partial<Filters> }[] = [];
+  if (filters.q) chips.push({ key: 'q', label: `“${filters.q}”`, clear: { q: '' } });
+  if (filters.categoryId) {
+    chips.push({
+      key: 'category',
+      label: categoryById.get(filters.categoryId)?.category.name ?? 'Category',
+      clear: { categoryId: '' },
+    });
+  }
+  if (filters.locationCity) {
+    chips.push({ key: 'city', label: filters.locationCity, clear: { locationCity: '' } });
+  }
+  if (filters.minPrice || filters.maxPrice) {
+    const unit = filters.currency ? ` ${filters.currency}` : '';
+    const label =
+      filters.minPrice && filters.maxPrice
+        ? `${filters.minPrice} – ${filters.maxPrice}${unit}`
+        : filters.minPrice
+          ? `From ${filters.minPrice}${unit}`
+          : `Up to ${filters.maxPrice}${unit}`;
+    chips.push({ key: 'price', label, clear: { minPrice: '', maxPrice: '' } });
+  }
+  if (filters.currency) {
+    chips.push({ key: 'currency', label: filters.currency, clear: { currency: '' } });
+  }
+  if (filters.condition) {
+    chips.push({
+      key: 'condition',
+      label: conditionLabel(filters.condition),
+      clear: { condition: '' },
+    });
+  }
+  // The search box has its own clear control; count the sheet's filters only.
+  const sheetFilterCount = chips.filter((c) => c.key !== 'q').length;
+  const isLanding = chips.length === 0 && page === 1;
+
+  const fieldProps = {
+    filters,
+    categories,
+    drafts,
+    setDraft,
+    commitDraft,
+    onChange: changeFilters,
   };
-
-  const clearFilters = () => {
-    router.push('/');
-  };
-
-  const hasActiveFilters =
-    filters.q ||
-    categoryId ||
-    filters.minPrice ||
-    filters.maxPrice ||
-    condition ||
-    currency ||
-    page > 1;
+  const total = data?.meta.total ?? 0;
+  const totalPages = data?.meta.totalPages ?? 1;
 
   return (
-    <div className="page">
-      <div style={{ marginBottom: '1.5rem' }}>
-        <form onSubmit={handleSearch} style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
+    <div className="container page">
+      <section className={isLanding ? styles.hero : styles.heroCompact}>
+        {isLanding ? (
+          <>
+            <h1 className={styles.headline}>{SITE_TAGLINE}</h1>
+            <p className={styles.sub}>
+              Phones, cars, furniture, solar panels and more, from people in your city.
+            </p>
+          </>
+        ) : (
+          <h1 className="visually-hidden">Search results</h1>
+        )}
+
+        <form onSubmit={handleSearch} className={styles.search} role="search">
+          <Search aria-hidden="true" className={styles.searchIcon} />
           <input
+            className={styles.searchInput}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search listings..."
+            placeholder="What are you looking for?"
             aria-label="Search listings"
             maxLength={200}
-            style={{
-              flex: 1,
-              padding: '0.5rem 0.75rem',
-              border: '1px solid var(--color-border)',
-              borderRadius: 'var(--radius)',
-              fontSize: '0.9375rem',
-            }}
+            enterKeyHint="search"
+            dir="auto"
           />
-          <button type="submit" className="btn btn-primary" style={{ width: 'auto' }}>
-            Search
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowFilters((v) => !v)}
-            className="btn btn-secondary"
-            style={{ width: 'auto' }}
-          >
-            {showFilters ? 'Hide filters' : 'Filters'}
-          </button>
-        </form>
-
-        {showFilters && (
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
-              gap: '0.75rem',
-              padding: '1rem',
-              background: 'var(--color-white)',
-              border: '1px solid var(--color-border)',
-              borderRadius: 'var(--radius)',
-              marginBottom: '0.75rem',
-            }}
-          >
-            <div className="form-group" style={{ margin: 0 }}>
-              <label htmlFor="filter-category" style={{ fontSize: '0.75rem', fontWeight: 600 }}>
-                Category
-              </label>
-              <select
-                id="filter-category"
-                value={categoryId}
-                onChange={(e) => {
-                  handleFilterChange({ categoryId: e.target.value });
-                }}
-                style={{ width: '100%' }}
-              >
-                <option value="">All categories</option>
-                {flatCategories(categories).map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="form-group" style={{ margin: 0 }}>
-              <label htmlFor="filter-condition" style={{ fontSize: '0.75rem', fontWeight: 600 }}>
-                Condition
-              </label>
-              <select
-                id="filter-condition"
-                value={condition}
-                onChange={(e) => {
-                  handleFilterChange({ condition: e.target.value });
-                }}
-                style={{ width: '100%' }}
-              >
-                {CONDITIONS.map((c) => (
-                  <option key={c.value} value={c.value}>
-                    {c.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="form-group" style={{ margin: 0 }}>
-              <label htmlFor="filter-currency" style={{ fontSize: '0.75rem', fontWeight: 600 }}>
-                Currency
-              </label>
-              <select
-                id="filter-currency"
-                value={currency}
-                onChange={(e) => {
-                  handleFilterChange({ currency: e.target.value });
-                }}
-                style={{ width: '100%' }}
-              >
-                <option value="">Any currency</option>
-                {CURRENCIES.map((c) => (
-                  <option key={c.value} value={c.value}>
-                    {c.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="form-group" style={{ margin: 0 }}>
-              <label htmlFor="filter-min-price" style={{ fontSize: '0.75rem', fontWeight: 600 }}>
-                Min price
-              </label>
-              <input
-                id="filter-min-price"
-                type="number"
-                min="0"
-                step="0.01"
-                value={minPrice}
-                onChange={(e) => setMinPrice(e.target.value)}
-                onBlur={(e) => commitPrice('minPrice', e.target.value)}
-                onKeyDown={commitOnEnter('minPrice')}
-                placeholder="0"
-                style={{ width: '100%' }}
-              />
-            </div>
-
-            <div className="form-group" style={{ margin: 0 }}>
-              <label htmlFor="filter-max-price" style={{ fontSize: '0.75rem', fontWeight: 600 }}>
-                Max price
-              </label>
-              <input
-                id="filter-max-price"
-                type="number"
-                min="0"
-                step="0.01"
-                value={maxPrice}
-                onChange={(e) => setMaxPrice(e.target.value)}
-                onBlur={(e) => commitPrice('maxPrice', e.target.value)}
-                onKeyDown={commitOnEnter('maxPrice')}
-                placeholder="Any"
-                style={{ width: '100%' }}
-              />
-            </div>
-
-            <div className="form-group" style={{ margin: 0 }}>
-              <label htmlFor="filter-sort" style={{ fontSize: '0.75rem', fontWeight: 600 }}>
-                Sort by
-              </label>
-              <select
-                id="filter-sort"
-                value={sortBy}
-                onChange={(e) => {
-                  handleFilterChange({ sortBy: e.target.value });
-                }}
-                style={{ width: '100%' }}
-              >
-                {SORT_OPTIONS.map((s) => (
-                  <option key={s.value} value={s.value}>
-                    {s.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {hasActiveFilters && (
-              <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-                <button
-                  type="button"
-                  onClick={clearFilters}
-                  className="btn btn-secondary"
-                  style={{ width: 'auto', fontSize: '0.8125rem' }}
-                >
-                  Clear all
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {loading && <div className="loading">Loading listings...</div>}
-
-      {loadError && (
-        <div className="form-error" role="alert">
-          Could not load listings: {loadError}{' '}
-          <button
-            type="button"
-            onClick={() => setRetry((n) => n + 1)}
-            className="btn btn-secondary"
-            style={{ width: 'auto', marginLeft: '0.5rem' }}
-          >
-            Try again
-          </button>
-        </div>
-      )}
-
-      {!loading && !loadError && (!data || data.data.length === 0) && (
-        <div className="empty">
-          <p>No listings found. Try adjusting your search or filters.</p>
-          {hasActiveFilters && (
-            <button onClick={clearFilters} className="btn btn-secondary" style={{ marginTop: '0.75rem' }}>
-              Clear filters
-            </button>
-          )}
-        </div>
-      )}
-
-      {!loading && data && data.data.length > 0 && (
-        <>
-          <div style={{ marginBottom: '0.5rem', fontSize: '0.875rem', color: 'var(--color-text-light)' }}>
-            {data.meta.total} listing{data.meta.total !== 1 ? 's' : ''} found
-          </div>
-          <div className="listing-grid">
-            {data.data.map((listing) => (
-              <ListingCard key={listing.id} listing={listing} />
-            ))}
-          </div>
-
-          {data.meta.totalPages > 1 && (
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'center',
-                gap: '0.5rem',
-                marginTop: '2rem',
+          {search && (
+            <button
+              type="button"
+              className={styles.searchClear}
+              aria-label="Clear search"
+              onClick={() => {
+                setSearch('');
+                if (filters.q) changeFilters({ q: '' });
               }}
             >
-              <button
-                className="btn btn-secondary"
-                disabled={page <= 1}
-                onClick={() => handlePage(page - 1)}
-              >
-                Previous
-              </button>
-              <span
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  fontSize: '0.875rem',
-                  color: 'var(--color-text-light)',
-                }}
-              >
-                Page {data.meta.page} of {data.meta.totalPages}
-              </span>
-              <button
-                className="btn btn-secondary"
-                disabled={page >= data.meta.totalPages}
-                onClick={() => handlePage(page + 1)}
-              >
-                Next
-              </button>
-            </div>
+              <X aria-hidden="true" />
+            </button>
           )}
-        </>
-      )}
-    </div>
-  );
-}
+          <Button type="submit" variant="primary" className={styles.searchButton}>
+            Search
+          </Button>
+        </form>
+      </section>
 
-function ListingCard({ listing }: { listing: Listing }) {
-  const primaryImage =
-    listing.images?.find((img) => img.isPrimary) || listing.images?.[0];
-  const imageUrl = primaryImage ? getImageUrl(primaryImage, 'thumb') : null;
-
-  return (
-    <Link
-      href={`/listings/${listing.id}`}
-      style={{ textDecoration: 'none', color: 'inherit' }}
-    >
-      <div className="card">
-        {imageUrl ? (
-          <img
-            src={imageUrl}
-            alt={listing.title}
-            className="card-img"
-            loading="lazy"
-          />
-        ) : (
-          <div
-            className="card-img"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'var(--color-text-light)',
-              fontSize: '0.875rem',
-            }}
+      <nav className={styles.rail} aria-label="Categories">
+        <Link
+          href={buildUrl({ categoryId: '', page: 1 })}
+          scroll={false}
+          className={`chip ${!filters.categoryId ? 'chip--active' : ''}`}
+          aria-current={!filters.categoryId ? 'true' : undefined}
+        >
+          <LayoutGrid aria-hidden="true" />
+          All
+        </Link>
+        {categories.map((cat) => (
+          <Link
+            key={cat.id}
+            href={buildUrl({ categoryId: cat.id, page: 1 })}
+            scroll={false}
+            className={`chip ${activeRootId === cat.id ? 'chip--active' : ''}`}
+            aria-current={activeRootId === cat.id ? 'true' : undefined}
           >
-            No image
+            <CategoryIcon icon={cat.icon} />
+            {cat.name}
+          </Link>
+        ))}
+        {categories.length === 0 &&
+          Array.from({ length: 6 }, (_, i) => (
+            <span key={i} className={`skeleton ${styles.railSkeleton}`} />
+          ))}
+      </nav>
+
+      <div className={styles.layout}>
+        <aside className={styles.sidebar} aria-label="Filters">
+          <h2 className={styles.sidebarTitle}>Filters</h2>
+          <FilterFields idPrefix="side" {...fieldProps} />
+          {chips.length > 0 && (
+            <Button size="sm" variant="ghost" block onClick={clearFilters}>
+              Clear all filters
+            </Button>
+          )}
+        </aside>
+
+        <section className={styles.results} aria-label="Listings">
+          <div className={styles.toolbar}>
+            <p className={styles.count} aria-live="polite">
+              {loading ? (
+                <span className={`skeleton ${styles.countSkeleton}`} />
+              ) : loadError ? null : (
+                <>
+                  <strong>{total.toLocaleString('en')}</strong> listing{total === 1 ? '' : 's'}
+                </>
+              )}
+            </p>
+            <div className={styles.toolbarActions}>
+              <Button
+                size="sm"
+                className={styles.filterButton}
+                onClick={() => setSheetOpen(true)}
+              >
+                <SlidersHorizontal aria-hidden="true" />
+                Filters
+                {sheetFilterCount > 0 && <span className="count-dot">{sheetFilterCount}</span>}
+              </Button>
+              <Field label="Sort by" htmlFor="sort" hideLabel className={styles.sort}>
+                <Select
+                  id="sort"
+                  value={filters.sortBy}
+                  onChange={(e) => changeFilters({ sortBy: e.target.value })}
+                >
+                  {SORT_OPTIONS.map((s) => (
+                    <option key={s.value} value={s.value}>
+                      {s.label}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            </div>
           </div>
-        )}
-        <div className="card-body">
-          <div className="card-title">{listing.title}</div>
-          <div className="card-price">
-            {formatPrice(listing.price, listing.currency)}
-          </div>
-          <div className="card-meta">
-            {[listing.locationCity, listing.condition].filter(Boolean).join(' · ')}
-          </div>
-        </div>
+
+          {chips.length > 0 && (
+            <ul className={styles.chips} aria-label="Active filters">
+              {chips.map((chip) => (
+                <li key={chip.key}>
+                  <button
+                    type="button"
+                    className="chip chip--soft"
+                    onClick={() => changeFilters(chip.clear)}
+                  >
+                    <span dir="auto">{chip.label}</span>
+                    <X aria-hidden="true" />
+                    <span className="visually-hidden">Remove filter</span>
+                  </button>
+                </li>
+              ))}
+              <li>
+                <button type="button" className={`link ${styles.clearAll}`} onClick={clearFilters}>
+                  Clear all
+                </button>
+              </li>
+            </ul>
+          )}
+
+          {loading && <ListingGridSkeleton />}
+
+          {loadError && (
+            <EmptyState
+              icon={WifiOff}
+              title="Could not load listings"
+              actions={
+                <Button variant="primary" onClick={() => setRetry((n) => n + 1)}>
+                  Try again
+                </Button>
+              }
+            >
+              {loadError}. Check your connection and try again.
+            </EmptyState>
+          )}
+
+          {!loading && !loadError && total === 0 && (
+            <EmptyState
+              icon={SearchX}
+              title="Nothing matches yet"
+              actions={
+                chips.length > 0 ? (
+                  <Button variant="primary" onClick={clearFilters}>
+                    Clear filters
+                  </Button>
+                ) : (
+                  <Link href="/listings/create" className="btn btn--accent">
+                    Post the first listing
+                  </Link>
+                )
+              }
+            >
+              {chips.length > 0
+                ? 'Try a different word, a wider price range or another city.'
+                : 'Be the first to sell something here.'}
+            </EmptyState>
+          )}
+
+          {data && data.data.length > 0 && (
+            <>
+              <ListingGrid>
+                {data.data.map((listing, i) => (
+                  <ListingCard key={listing.id} listing={listing} priority={i < 4} />
+                ))}
+              </ListingGrid>
+
+              {totalPages > 1 && (
+                <nav className={styles.pagination} aria-label="Pages">
+                  {page > 1 ? (
+                    <Link href={buildUrl({ page: page - 1 })} className="btn" rel="prev">
+                      <ChevronLeft aria-hidden="true" className="icon-flip" />
+                      Previous
+                    </Link>
+                  ) : (
+                    <span className="btn" aria-disabled="true">
+                      <ChevronLeft aria-hidden="true" className="icon-flip" />
+                      Previous
+                    </span>
+                  )}
+                  <span className={styles.pageInfo}>
+                    Page <strong>{data.meta.page}</strong> of {totalPages}
+                  </span>
+                  {page < totalPages ? (
+                    <Link href={buildUrl({ page: page + 1 })} className="btn" rel="next">
+                      Next
+                      <ChevronRight aria-hidden="true" className="icon-flip" />
+                    </Link>
+                  ) : (
+                    <span className="btn" aria-disabled="true">
+                      Next
+                      <ChevronRight aria-hidden="true" className="icon-flip" />
+                    </span>
+                  )}
+                </nav>
+              )}
+            </>
+          )}
+        </section>
       </div>
-    </Link>
+
+      <Dialog
+        open={sheetOpen}
+        onClose={() => setSheetOpen(false)}
+        title="Filters"
+        variant="sheet"
+        footer={
+          <>
+            <Button onClick={clearFilters} disabled={chips.length === 0}>
+              Clear all
+            </Button>
+            <Button variant="primary" onClick={() => setSheetOpen(false)}>
+              {loading ? 'Show results' : `Show ${total.toLocaleString('en')} results`}
+            </Button>
+          </>
+        }
+      >
+        <FilterFields idPrefix="sheet" {...fieldProps} />
+      </Dialog>
+    </div>
   );
 }
 
 export default function HomePage() {
   return (
-    <Suspense fallback={<div className="loading">Loading...</div>}>
+    <Suspense
+      fallback={
+        <div className="container page">
+          <ListingGridSkeleton />
+        </div>
+      }
+    >
       <HomePageInner />
     </Suspense>
   );

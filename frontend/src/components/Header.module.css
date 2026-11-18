@@ -1,0 +1,204 @@
+.skip {
+  position: absolute;
+  inset-block-start: var(--s-2);
+  inset-inline-start: var(--s-2);
+  z-index: 100;
+  padding: var(--s-2) var(--s-4);
+  border-radius: var(--r-pill);
+  background: var(--brand);
+  color: var(--on-brand);
+  transform: translateY(-200%);
+}
+
+.skip:focus {
+  transform: none;
+}
+
+.header {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: var(--z-header);
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: saturate(1.4) blur(12px);
+  border-block-end: 1px solid var(--line);
+}
+
+.inner {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  block-size: var(--header-h);
+}
+
+.home {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--touch);
+  border-radius: var(--r-sm);
+}
+
+.nav {
+  display: none;
+  align-items: center;
+  gap: var(--s-1);
+  margin-inline-start: var(--s-4);
+}
+
+.navLink {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--touch);
+  padding-inline: var(--s-3);
+  border-radius: var(--r-pill);
+  color: var(--ink-2);
+  font-size: var(--text-md);
+  font-weight: var(--weight-medium);
+  transition:
+    background-color var(--dur-1) var(--ease),
+    color var(--dur-1) var(--ease);
+}
+
+.navLink:hover {
+  background: var(--surface-sunken);
+  color: var(--ink);
+}
+
+.navLink[aria-current='page'] {
+  color: var(--ink);
+  background: var(--surface-sunken);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+  margin-inline-start: auto;
+}
+
+.desktopOnly {
+  display: none;
+}
+
+.withDot {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+}
+
+.dot {
+  position: absolute;
+  inset-block-start: -4px;
+  inset-inline-end: -8px;
+  box-shadow: 0 0 0 2px var(--bg);
+}
+
+.actions .dot {
+  inset-block-start: 4px;
+  inset-inline-end: 2px;
+}
+
+.accountButton {
+  display: grid;
+  place-items: center;
+  inline-size: var(--touch);
+  block-size: var(--touch);
+  border-radius: 50%;
+}
+
+.accountButton:hover {
+  background: var(--surface-sunken);
+}
+
+.menuName {
+  padding: var(--s-2) var(--s-3);
+  font-weight: var(--weight-bold);
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 899px) {
+  .header[data-compact] {
+    display: none;
+  }
+}
+
+/* ── Phone: bottom tab bar ──────────────────────────── */
+.bottomNav {
+  position: sticky;
+  inset-block-end: 0;
+  z-index: var(--z-bar);
+  order: 99;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  padding-block-end: env(safe-area-inset-bottom);
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  backdrop-filter: blur(12px);
+  border-block-start: 1px solid var(--line);
+}
+
+.tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-block-size: var(--bottom-nav-h);
+  color: var(--ink-3);
+  font-size: 0.6875rem;
+  font-weight: var(--weight-medium);
+  line-height: 1.2;
+  transition: color var(--dur-1) var(--ease);
+}
+
+.tab svg {
+  inline-size: 22px;
+  block-size: 22px;
+}
+
+.tab[aria-current='page'] {
+  color: var(--ink);
+}
+
+.tab[aria-current='page'] svg {
+  stroke-width: 2.4;
+}
+
+.sell {
+  color: var(--ink);
+}
+
+.sellDisc {
+  display: grid;
+  place-items: center;
+  inline-size: 40px;
+  block-size: 30px;
+  border-radius: var(--r-pill);
+  background: var(--accent);
+  color: var(--on-accent);
+  box-shadow: var(--e-1);
+}
+
+@media (min-width: 900px) {
+  .nav {
+    display: flex;
+  }
+
+  .desktopOnly {
+    display: inline-flex;
+  }
+
+  .withDot.desktopOnly {
+    display: inline-grid;
+  }
+
+  .mobileOnly {
+    display: none;
+  }
+
+  .bottomNav {
+    display: none;
+  }
+
+  .actions {
+    gap: var(--s-2);
+  }
+}

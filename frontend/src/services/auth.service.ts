@@ -8,6 +8,8 @@ export interface User {
   displayName: string | null;
   phone: string | null;
   role: string;
+  isVerified?: boolean;
+  createdAt?: string;
 }
 
 export interface AuthResponse {

@@ -1,0 +1,41 @@
+.overlay {
+  display: grid;
+  place-items: center;
+  inline-size: var(--touch);
+  block-size: var(--touch);
+  border-radius: 50%;
+  color: var(--ink);
+  /* The visible disc is smaller than the 44px touch area. */
+  background: radial-gradient(circle, var(--surface-raised) 0 17px, transparent 18px);
+  filter: drop-shadow(0 1px 2px rgb(27 23 48 / 0.25));
+  transition: transform var(--dur-1) var(--ease);
+}
+
+.overlay:hover {
+  transform: scale(1.08);
+}
+
+.overlay:active {
+  transform: scale(0.92);
+}
+
+.overlay svg {
+  inline-size: 18px;
+  block-size: 18px;
+}
+
+.on {
+  color: var(--rose);
+  fill: var(--rose);
+  animation: pop var(--dur-3) var(--ease);
+}
+
+.labelled svg {
+  transition: color var(--dur-1) var(--ease);
+}
+
+@keyframes pop {
+  40% {
+    transform: scale(1.35);
+  }
+}

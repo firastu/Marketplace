@@ -1,4 +1,17 @@
 import { apiClient } from './api-client';
+import type { ListingImage, PublicUser } from './listings.service';
+
+export interface ConversationListing {
+  id: string;
+  title: string;
+  price: number | string;
+  currency: string;
+  status: string;
+  /** Set when the seller deleted the listing; the chat is kept. */
+  deletedAt?: string | null;
+  /** Cover photo only (empty when the listing has none or was deleted). */
+  images?: ListingImage[];
+}
 
 export interface Conversation {
   id: string;
@@ -7,10 +20,10 @@ export interface Conversation {
   sellerId: string;
   lastMessageAt: string;
   unreadCount?: number;
-  /** deletedAt is set when the seller deleted the listing; the chat is kept. */
-  listing?: { id: string; title: string; deletedAt?: string | null };
-  buyer?: { id: string; username: string; displayName: string | null };
-  seller?: { id: string; username: string; displayName: string | null };
+  lastMessage?: { body: string; senderId: string; createdAt: string } | null;
+  listing?: ConversationListing;
+  buyer?: PublicUser;
+  seller?: PublicUser;
 }
 
 export interface Message {
@@ -20,7 +33,7 @@ export interface Message {
   body: string;
   isRead: boolean;
   createdAt: string;
-  sender?: { id: string; username: string; displayName: string | null };
+  sender?: PublicUser;
 }
 
 export function getMyConversations(): Promise<Conversation[]> {

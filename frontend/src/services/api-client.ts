@@ -84,3 +84,43 @@ export async function apiClient<T>(
   const text = await res.text();
   return (text ? JSON.parse(text) : undefined) as T;
 }
+
+/**
+ * multipart POST with upload progress. fetch() cannot report how much of a
+ * request body has been sent, XMLHttpRequest can; on a slow connection a
+ * 3 MB photo without a progress bar looks like a frozen page.
+ */
+export function uploadWithProgress<T>(
+  endpoint: string,
+  body: FormData,
+  onProgress?: (fraction: number) => void,
+  signal?: AbortSignal,
+): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `${API_URL}${endpoint}`);
+    const token = getToken();
+    if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) onProgress?.(e.loaded / e.total);
+    };
+    xhr.onload = () => {
+      let payload: unknown = null;
+      try {
+        payload = xhr.responseText ? JSON.parse(xhr.responseText) : null;
+      } catch {
+        // not JSON: handled below by status
+      }
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(payload as T);
+        return;
+      }
+      if (xhr.status === 401 && token) window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
+      reject(new ApiError(errorMessage(payload, xhr.status), xhr.status));
+    };
+    xhr.onerror = () => reject(new ApiError('Connection lost. Check your network.', 0));
+    xhr.onabort = () => reject(new ApiError('Upload cancelled', 0));
+    signal?.addEventListener('abort', () => xhr.abort());
+    xhr.send(body);
+  });
+}
