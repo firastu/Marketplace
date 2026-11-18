@@ -12,6 +12,7 @@ export default function MyListingsPage() {
   const router = useRouter();
   const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -21,7 +22,10 @@ export default function MyListingsPage() {
     if (user) {
       getMyListings()
         .then(setListings)
-        .catch(() => {})
+        // A failed request used to look like "you have no listings".
+        .catch((err) =>
+          setLoadError(err instanceof Error ? err.message : 'Could not load your listings'),
+        )
         .finally(() => setLoading(false));
     }
   }, [authLoading, user, router]);
@@ -31,8 +35,8 @@ export default function MyListingsPage() {
     try {
       await deleteListing(id);
       setListings((prev) => prev.filter((l) => l.id !== id));
-    } catch {
-      alert('Failed to delete listing');
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to delete listing');
     }
   };
 
@@ -48,7 +52,11 @@ export default function MyListingsPage() {
         </Link>
       </div>
 
-      {listings.length === 0 ? (
+      {loadError ? (
+        <div className="form-error" role="alert">
+          {loadError}
+        </div>
+      ) : listings.length === 0 ? (
         <div className="empty">
           <p>You haven&apos;t posted any listings yet.</p>
         </div>

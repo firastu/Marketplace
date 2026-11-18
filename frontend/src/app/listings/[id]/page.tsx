@@ -10,7 +10,7 @@ import {
   getImageUrl,
   getPrimaryImage,
 } from '@/services';
-import { startConversation } from '@/services/messages.service';
+import { getMyConversations, startConversation } from '@/services/messages.service';
 import { formatPrice } from '@/utils/format';
 
 export default function ListingDetailPage() {
@@ -90,6 +90,15 @@ export default function ListingDetailPage() {
     if (!listing) return;
     setContacting(true);
     try {
+      // Already talking about this listing? Open that chat. Every click
+      // used to post another "Hi, I'm interested" message to the seller.
+      const existing = (await getMyConversations()).find(
+        (c) => c.listingId === listing.id && c.buyerId === user.id,
+      );
+      if (existing) {
+        router.push(`/messages/${existing.id}`);
+        return;
+      }
       const { conversation } = await startConversation(
         listing.id,
         `Hi, I'm interested in your listing: ${listing.title}`,
@@ -195,10 +204,12 @@ export default function ListingDetailPage() {
               {formatPrice(listing.price, listing.currency)}
             </div>
             <div className="meta">Condition: {listing.condition}</div>
-            <div className="meta">
-              Location: {listing.locationCity}
-              {listing.locationZip ? ` (${listing.locationZip})` : ''}
-            </div>
+            {listing.locationCity && (
+              <div className="meta">
+                Location: {listing.locationCity}
+                {listing.locationZip ? ` (${listing.locationZip})` : ''}
+              </div>
+            )}
             {listing.isNegotiable && (
               <div className="meta" style={{ color: 'var(--color-success)' }}>Price is negotiable</div>
             )}
@@ -216,7 +227,8 @@ export default function ListingDetailPage() {
               Posted {new Date(listing.createdAt).toLocaleDateString()}
             </div>
 
-            {!isOwnListing && listing.status === 'active' && (
+            {/* The API accepts enquiries for active and reserved listings. */}
+            {!isOwnListing && ['active', 'reserved'].includes(listing.status) && (
               <button
                 onClick={handleContact}
                 className="btn btn-primary"

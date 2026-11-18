@@ -16,7 +16,6 @@ export interface ListingImage {
   width: number | null;
   height: number | null;
   status: ImageStatus;
-  storageKeyOriginal: string | null;
   storageKeyThumb: string | null;
   storageKeyMedium: string | null;
   storageKeyLarge: string | null;
@@ -118,7 +117,12 @@ export function getListingById(id: string): Promise<Listing> {
 }
 
 export function getMyListings(): Promise<Listing[]> {
-  return apiClient<PaginatedListings>('/listings/my', { auth: true }).then((res) => res.data);
+  // Without a limit the API returns the first 20 only, and the page has no
+  // pagination, so a seller's older listings were unreachable. 100 is the
+  // API maximum.
+  return apiClient<PaginatedListings>('/listings/my?limit=100', { auth: true }).then(
+    (res) => res.data,
+  );
 }
 
 export function createListing(data: CreateListingData): Promise<Listing> {
@@ -140,9 +144,9 @@ export function uploadImage(
 ): Promise<ListingImage> {
   const formData = new FormData();
   formData.append('file', file);
-  if (isPrimary) formData.append('primary', 'true');
+  // The API reads `primary` from the query string, not the form body.
   return apiClient<ListingImage>(
-    `/listings/${listingId}/images`,
+    `/listings/${listingId}/images${isPrimary ? '?primary=true' : ''}`,
     { method: 'POST', body: formData, auth: true, multipart: true },
   );
 }

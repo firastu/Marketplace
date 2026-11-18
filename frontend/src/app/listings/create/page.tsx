@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, FormEvent, ChangeEvent } from 'react';
+import { useState, useEffect, useMemo, useRef, FormEvent, ChangeEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
 import {
@@ -75,8 +75,18 @@ export default function CreateListingPage() {
     }
   };
 
+  // One preview URL per selected file, released again when the selection
+  // changes (creating them during render leaked one per file per render).
+  const previews = useMemo(
+    () => pendingFiles.map((file) => URL.createObjectURL(file)),
+    [pendingFiles],
+  );
+  useEffect(() => () => previews.forEach((url) => URL.revokeObjectURL(url)), [previews]);
+
   const handleFilesSelected = (e: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
+    // Let the same file be picked again later (e.g. after removing it).
+    e.target.value = '';
     const valid = files.filter(
       (f) => ACCEPTED_TYPES.includes(f.type) && f.size <= MAX_FILE_SIZE,
     );
@@ -89,7 +99,11 @@ export default function CreateListingPage() {
       setUploadError(`Maximum ${MAX_FILES} images allowed.`);
       return;
     }
-    setUploadError('');
+    setUploadError(
+      valid.length < files.length
+        ? `${files.length - valid.length} file(s) skipped: only JPEG, PNG or WebP up to 10 MB.`
+        : '',
+    );
     setPendingFiles((prev) => [...prev, ...valid]);
   };
 
@@ -101,17 +115,20 @@ export default function CreateListingPage() {
     if (!listingId || pendingFiles.length === 0) return;
     setUploadProgress(true);
     setUploadError('');
+    let uploaded = 0;
     try {
       const isFirst = images.length === 0;
-      for (let i = 0; i < pendingFiles.length; i++) {
-        const file = pendingFiles[i];
-        const img = await uploadImage(listingId, file, isFirst && i === 0);
+      for (const file of pendingFiles) {
+        const img = await uploadImage(listingId, file, isFirst && uploaded === 0);
+        uploaded += 1;
         setImages((prev) => [...prev, img]);
       }
-      setPendingFiles([]);
     } catch (err) {
       setUploadError(err instanceof Error ? err.message : 'Upload failed');
     } finally {
+      // Keep only what still has to be sent. Leaving the finished files in
+      // the queue made "Upload" after a failure send them a second time.
+      setPendingFiles((prev) => prev.slice(uploaded));
       setUploadProgress(false);
     }
   };
@@ -121,8 +138,8 @@ export default function CreateListingPage() {
     try {
       await deleteImage(listingId, imageId);
       setImages((prev) => prev.filter((i) => i.id !== imageId));
-    } catch {
-      // silent
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : 'Could not delete the photo');
     }
   };
 
@@ -171,9 +188,9 @@ export default function CreateListingPage() {
         {pendingFiles.length > 0 && (
           <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
             {pendingFiles.map((file, i) => (
-              <div key={i} style={{ position: 'relative' }}>
+              <div key={`${file.name}-${file.lastModified}-${i}`} style={{ position: 'relative' }}>
                 <img
-                  src={URL.createObjectURL(file)}
+                  src={previews[i]}
                   alt=""
                   style={{
                     width: 80,
@@ -185,6 +202,9 @@ export default function CreateListingPage() {
                   }}
                 />
                 <button
+                  type="button"
+                  aria-label={`Remove ${file.name}`}
+                  disabled={uploadProgress}
                   onClick={() => removePending(i)}
                   style={{
                     position: 'absolute',
