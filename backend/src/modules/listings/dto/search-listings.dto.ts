@@ -28,6 +28,13 @@ export class SearchListingsDto {
   categoryId?: string;
 
   @ApiPropertyOptional({
+    description: "Only listings of this seller (public seller page)",
+  })
+  @IsOptional()
+  @IsUUID()
+  userId?: string;
+
+  @ApiPropertyOptional({
     enum: CURRENCIES,
     description: "Only listings priced in this currency",
   })

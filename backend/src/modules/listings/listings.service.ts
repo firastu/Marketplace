@@ -115,6 +115,9 @@ export class ListingsService {
         { categoryId: filters.categoryId },
       );
     }
+    if (filters.userId) {
+      qb.andWhere("listing.userId = :sellerId", { sellerId: filters.userId });
+    }
     if (filters.currency) {
       qb.andWhere("listing.currency = :currency", {
         currency: filters.currency,

@@ -230,7 +230,7 @@ Only active categories and subcategories are returned, ordered by `sortOrder`.
 **Create** body: `{ title, description, price, categoryId, condition?, currency?, locationCity?, locationZip?, isNegotiable?, isShippingAvailable? }`
 
 - `currency`: `SYP` (default) or `USD`. `price` 0 means free.
-- `GET /listings` filters: `q`, `categoryId` (includes subcategories), `currency`, `minPrice`, `maxPrice`, `condition`, `locationCity`, `sortBy`.
+- `GET /listings` filters: `q`, `categoryId` (includes subcategories), `userId` (one seller's listings), `currency`, `minPrice`, `maxPrice`, `condition`, `locationCity`, `sortBy`.
 - Seller objects (`listing.user`, and users anywhere else in responses) only contain public fields: `id, username, displayName, avatarUrl, bio, isVerified, createdAt`. Email and phone are only returned to the account owner (`/auth/me`, login, register).
 
 **Status values**: `draft`, `active`, `sold`, `reserved`, `expired`, `removed`
@@ -290,7 +290,7 @@ Add `?primary=true` query parameter to set as primary image.
 - `POST /conversations/:id/read` does the same without returning the thread; the web client calls it when a message arrives while the chat is open.
 - Whenever messages are marked read, the reader's sockets receive `unreadCountChanged`.
 - `GET /conversations/unread-count` counts all unread messages across all conversations for the current user.
-- `GET /conversations` returns each conversation with an `unreadCount` field.
+- `GET /conversations` returns each conversation with an `unreadCount` field, a `lastMessage` preview (`{ body, senderId, createdAt }`, body cut at 140 characters) and the listing's cover photo in `listing.images` (empty once the listing is deleted).
 - This ensures that when a seller logs in after being offline, they immediately see how many new messages arrived and which conversations have unread content.
 
 ### Reviews Module

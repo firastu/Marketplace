@@ -5,10 +5,11 @@ import {
   BadRequestException,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository } from "typeorm";
+import { In, Repository } from "typeorm";
 import { Conversation } from "./conversation.entity";
 import { Message } from "./message.entity";
 import { Listing } from "../listings/listing.entity";
+import { ListingImage } from "../listings/listing-image.entity";
 import { MessagesGateway } from "./messages.gateway";
 import { isUniqueViolation } from "../../common/database-exception.filter";
 
@@ -23,6 +24,8 @@ export class MessagesService {
     private readonly msgRepo: Repository<Message>,
     @InjectRepository(Listing)
     private readonly listingRepo: Repository<Listing>,
+    @InjectRepository(ListingImage)
+    private readonly imageRepo: Repository<ListingImage>,
     private readonly gateway: MessagesGateway,
   ) {}
 
@@ -53,10 +56,64 @@ export class MessagesService {
       rows.map((r) => [r.conversationId, Number(r.count)]),
     );
 
-    return conversations.map((conv) => ({
-      ...conv,
-      unreadCount: unread.get(conv.id) ?? 0,
-    }));
+    const ids = conversations.map((c) => c.id);
+
+    // Latest message per conversation, for the inbox preview.
+    const lastRows: {
+      conversation_id: string;
+      body: string;
+      sender_id: string;
+      created_at: Date;
+    }[] = await this.msgRepo.query(
+      `SELECT DISTINCT ON (conversation_id)
+              conversation_id, body, sender_id, created_at
+         FROM messages
+        WHERE conversation_id = ANY($1)
+        ORDER BY conversation_id, created_at DESC`,
+      [ids],
+    );
+    const lastMessages = new Map(
+      lastRows.map((r) => [
+        r.conversation_id,
+        {
+          body: r.body.length > 140 ? `${r.body.slice(0, 140)}…` : r.body,
+          senderId: r.sender_id,
+          createdAt: r.created_at,
+        },
+      ]),
+    );
+
+    // Cover photo of each listing that still exists (deleted images are
+    // excluded by @DeleteDateColumn).
+    const liveListingIds = [
+      ...new Set(
+        conversations
+          .filter((c) => c.listing && !c.listing.deletedAt)
+          .map((c) => c.listingId),
+      ),
+    ];
+    const covers = new Map<string, ListingImage>();
+    if (liveListingIds.length > 0) {
+      const images = await this.imageRepo.find({
+        where: { listingId: In(liveListingIds) },
+        order: { isPrimary: "DESC", sortOrder: "ASC" },
+      });
+      for (const image of images) {
+        if (!covers.has(image.listingId)) covers.set(image.listingId, image);
+      }
+    }
+
+    return conversations.map((conv) => {
+      const cover = covers.get(conv.listingId);
+      return {
+        ...conv,
+        listing: conv.listing
+          ? { ...conv.listing, images: cover ? [cover] : [] }
+          : conv.listing,
+        unreadCount: unread.get(conv.id) ?? 0,
+        lastMessage: lastMessages.get(conv.id) ?? null,
+      };
+    });
   }
 
   async getConversationMessages(

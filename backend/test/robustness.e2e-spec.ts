@@ -1,4 +1,4 @@
-import { TestApp, auth } from "./helpers";
+import { TestApp, auth, png } from "./helpers";
 
 describe("Robustness: races, odd input and stale data", () => {
   let t: TestApp;
@@ -192,5 +192,69 @@ describe("Robustness: races, odd input and stale data", () => {
       expect(seen).toHaveLength(7);
       expect([...seen].sort()).toEqual([...created].sort());
     }
+  });
+
+  it("search can be limited to one seller (public seller page)", async () => {
+    const seller = await t.user("shop");
+    const other = await t.user("othershop");
+    const mine = await t.listing(seller, { title: "From this seller" });
+    await t.listing(other, { title: "From someone else" });
+    const res = await t
+      .http()
+      .get(`/api/listings?userId=${seller.id}`)
+      .expect(200);
+    expect(res.body.data.map((l: any) => l.id)).toEqual([mine.id]);
+    await t.http().get("/api/listings?userId=not-a-uuid").expect(400);
+  });
+
+  it("the inbox carries a preview of the last message and the listing's cover photo", async () => {
+    const seller = await t.user("seller");
+    const buyer = await t.user("buyer");
+    const listing = await t.listing(seller);
+    const first = (await t.upload(seller, listing.id, await png()).expect(201))
+      .body;
+    const second = (
+      await t.upload(seller, listing.id, await png("#3333cc")).expect(201)
+    ).body;
+    await t
+      .http()
+      .patch(`/api/listings/${listing.id}/images/${second.id}/cover`)
+      .set(...auth(seller))
+      .expect(200);
+    const conv = await t.conversation(buyer, listing.id, "Is it available?");
+    await t
+      .http()
+      .post(`/api/conversations/${conv.id}/messages`)
+      .set(...auth(seller))
+      .send({ body: "Yes, come by tomorrow" })
+      .expect(201);
+
+    const inbox = await t
+      .http()
+      .get("/api/conversations")
+      .set(...auth(buyer))
+      .expect(200);
+    const row = inbox.body.find((c: any) => c.id === conv.id);
+    expect(row.lastMessage).toMatchObject({
+      body: "Yes, come by tomorrow",
+      senderId: seller.id,
+    });
+    expect(row.listing.images.map((i: any) => i.id)).toEqual([second.id]);
+    expect(first.id).not.toBe(second.id);
+    expect(JSON.stringify(row)).not.toContain("/original/");
+
+    // A deleted listing keeps its chat but shows no photo.
+    await t
+      .http()
+      .delete(`/api/listings/${listing.id}`)
+      .set(...auth(seller))
+      .expect(200);
+    const after = await t
+      .http()
+      .get("/api/conversations")
+      .set(...auth(buyer))
+      .expect(200);
+    expect(after.body[0].listing.images).toEqual([]);
+    expect(after.body[0].listing.deletedAt).toBeTruthy();
   });
 });
