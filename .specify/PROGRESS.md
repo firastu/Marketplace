@@ -227,6 +227,18 @@ Arabic is the default language with a right-to-left layout; English is fully sup
 
 ---
 
+### Launch readiness (GDPR, recovery, moderation, SSR)
+- [x] Password reset by email (bilingual one-time link, no account enumeration); every password change/reset signs out other sessions (token version)
+- [x] GDPR: consent recorded at sign-up (terms version + time), profile editing, change password, data export (JSON), account deletion (erasure with anonymised chat sender), 30-day photo retention for deleted listings, EXIF stripped, no tracking cookies
+- [x] Draft Terms, Privacy Policy, Imprint and Community Rules in Arabic and English (`frontend/src/config/legal.ts` holds the operator placeholders; `draft: true` until a lawyer has reviewed them)
+- [x] Reports (listings, users) and a moderation area (queue, remove/restore listings, suspend/reactivate users, log); statement of reasons emailed to affected users
+- [x] Listings mentioning weapons, ammunition, drugs or forged documents are held for review (`pending_review`)
+- [x] Server-rendered listing and seller pages with Open Graph/Twitter/JSON-LD, JPEG link-preview images, sitemap and robots
+- [x] Swagger off in production; GitHub Codespaces one-command demo
+- [ ] Phone sign-up with one-time codes (needs an SMS provider)
+- [ ] SMTP provider for production email (EU provider recommended)
+- [ ] Legal review of the drafts and filling in the operator details
+
 ### Wholesale (B2B) — planned
 Spec: `.specify/specs/b2b-wholesale.md` (business accounts and verification, supplier storefronts, wholesale products with pack size / MOQ / price tiers, order requests without online payment, re-order, RFQs). Phases B1 catalogue → B2 ordering → B3 growth, after Arabic i18n lands so it ships bilingual.
 

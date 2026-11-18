@@ -16,6 +16,8 @@ import {
 import { User } from "../users/user.entity";
 import { toPublicUser } from "../users/user-views";
 import { MessagesGateway } from "../messages/messages.gateway";
+import { MailService } from "../mail/mail.service";
+import { ConfigService } from "@nestjs/config";
 import { paginate, PaginatedResult } from "../../common";
 import { OPEN_REPORT_STATUSES, Report, ReportTarget } from "./report.entity";
 import {
@@ -50,6 +52,8 @@ export class ModerationService {
     @InjectRepository(Listing) private readonly listings: Repository<Listing>,
     @InjectRepository(User) private readonly users: Repository<User>,
     private readonly gateway: MessagesGateway,
+    private readonly mail: MailService,
+    private readonly config: ConfigService,
   ) {}
 
   /* ── reports from users ───────────────────────────────────────────── */
@@ -306,6 +310,7 @@ export class ModerationService {
       await this.log(em, actor, "remove_listing", "listing", id, reason);
       await this.closeOpenReports(em, actor, "listing", id, reason);
     });
+    await this.notify(listing.user, "listing_removed", reason, listing.title);
     return this.findListing(id);
   }
 
@@ -318,6 +323,7 @@ export class ModerationService {
       await em.update(Listing, id, { status: "active" });
       await this.log(em, actor, "restore_listing", "listing", id, reason);
     });
+    await this.notify(listing.user, "listing_restored", reason, listing.title);
     return this.findListing(id);
   }
 
@@ -332,6 +338,7 @@ export class ModerationService {
       await this.closeOpenReports(em, actor, "user", id, reason);
     });
     this.gateway.disconnectUser(id);
+    await this.notify(user, "account_suspended", reason);
     return staffView(await this.findUser(id));
   }
 
@@ -344,10 +351,89 @@ export class ModerationService {
       await em.update(User, id, { isActive: true });
       await this.log(em, actor, "reactivate_user", "user", id, reason);
     });
+    await this.notify(user, "account_reactivated", reason);
     return staffView(await this.findUser(id));
   }
 
   /* ── helpers ───────────────────────────────────────────────────────── */
+
+  /**
+   * Statement of reasons to the affected user (EU Digital Services Act,
+   * Art. 17): what was decided, why, and how to contest it. Bilingual,
+   * like the password-reset email.
+   */
+  private async notify(
+    user: User | null | undefined,
+    kind:
+      | "listing_removed"
+      | "listing_restored"
+      | "account_suspended"
+      | "account_reactivated",
+    reason?: string | null,
+    listingTitle?: string,
+  ) {
+    if (!user || user.deletedAt) return;
+    const appUrl = (
+      this.config.get<string>("APP_URL") || "http://localhost:3000"
+    ).replace(/\/$/, "");
+    const name = user.displayName || user.username;
+    const title = listingTitle ? `«${listingTitle}»` : "";
+    const texts = {
+      listing_removed: {
+        subject: "تمت إزالة إعلانك · Your listing was removed",
+        ar: `أزال فريق الإشراف إعلانك ${title} لأنه يخالف قواعد المنصة.`,
+        en: `Our moderators removed your listing ${title} because it breaks the site rules.`,
+      },
+      listing_restored: {
+        subject: "أُعيد نشر إعلانك · Your listing is back online",
+        ar: `أعاد فريق الإشراف نشر إعلانك ${title}.`,
+        en: `Our moderators restored your listing ${title}.`,
+      },
+      account_suspended: {
+        subject: "تم إيقاف حسابك · Your account was suspended",
+        ar: "أوقف فريق الإشراف حسابك لأنه يخالف قواعد المنصة. لن تظهر إعلاناتك ولا يمكنك تسجيل الدخول.",
+        en: "Our moderators suspended your account because it breaks the site rules. Your listings are hidden and you can't log in.",
+      },
+      account_reactivated: {
+        subject: "أُعيد تفعيل حسابك · Your account was reactivated",
+        ar: "أعاد فريق الإشراف تفعيل حسابك، ويمكنك تسجيل الدخول من جديد.",
+        en: "Our moderators reactivated your account; you can log in again.",
+      },
+    }[kind];
+    const negative = kind === "listing_removed" || kind === "account_suspended";
+    const lines = [
+      `مرحبًا ${name}،`,
+      "",
+      texts.ar,
+      ...(reason ? ["", `السبب: ${reason}`] : []),
+      ...(negative
+        ? [
+            "",
+            `قواعد المنصة: ${appUrl}/rules`,
+            "إذا كنت ترى أن هذا القرار خاطئ، يمكنك الاعتراض عليه بالرد على هذه الرسالة.",
+          ]
+        : []),
+      "",
+      "────────",
+      "",
+      `Hello ${name},`,
+      "",
+      texts.en,
+      ...(reason ? ["", `Reason: ${reason}`] : []),
+      ...(negative
+        ? [
+            "",
+            `Site rules: ${appUrl}/en/rules`,
+            "If you think this decision is wrong, you can contest it by replying to this email.",
+          ]
+        : []),
+    ];
+    await this.mail.send({
+      to: user.email,
+      subject: texts.subject,
+      text: lines.join("\n"),
+    });
+  }
 
   private async findListing(id: string): Promise<Listing> {
     const listing = await this.listings.findOne({

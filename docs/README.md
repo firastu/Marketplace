@@ -242,6 +242,8 @@ All endpoints are prefixed with `/api`. Protected endpoints require `Authorizati
 | POST | `/admin/users/:id/reactivate` | Staff | Undo a suspension |
 | GET | `/admin/actions` | Staff | Moderation log, newest first |
 
+**Statement of reasons**: removing a listing or suspending an account emails the affected user (bilingual) what was decided, the moderator's reason, a link to the rules and that they can contest the decision by replying (EU Digital Services Act, Art. 17). Restoring and reactivating send a short notice.
+
 Staff = role `admin` or `moderator` (others get 403). Nobody can act on themselves, and moderators can't act on admins. Every decision is logged in `moderation_actions` with its reason. Grant the role with `bash database/scripts/make-admin.sh user@example.com [admin|moderator|user]`; it takes effect on the next request.
 
 `reason` values: `prohibited_item`, `scam`, `counterfeit`, `offensive`, `harassment`, `spam`, `wrong_category`, `other`.
@@ -270,6 +272,7 @@ Categories carry `name` (English) and `nameAr` (Arabic, may be null — fall bac
 | Method | Endpoint               | Auth | Description                          |
 | ------ | ---------------------- | ---- | ------------------------------------ |
 | GET    | `/listings`            | No   | Get all active listings (paginated)  |
+| GET    | `/listings/:id/og-image` | No | Cover photo as a 1200×630 JPEG for link previews (public listings only, cached 1 day) |
 | GET    | `/listings/my`         | Yes  | Get current user's listings          |
 | GET    | `/listings/:id`        | No   | Get listing by ID with images        |
 | POST   | `/listings`            | Yes  | Create a new listing                 |

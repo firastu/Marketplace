@@ -94,6 +94,15 @@ function buildImageUrl(key: string | null, fallbackUrl: string): string {
 }
 
 /**
+ * Link-preview image for a listing: the backend serves the cover photo as a
+ * 1200×630 JPEG (chat apps handle WebP unevenly). `v` changes with the
+ * cover photo so apps that cache previews pick up a new one.
+ */
+export function getOgImageUrl(listingId: string, coverImageId: string): string {
+  return `${BACKEND_URL}/api/listings/${listingId}/og-image?v=${coverImageId}`;
+}
+
+/**
  * Public URL of a resized WebP variant. Originals are private on the server
  * (they can contain the camera's GPS position), so there is no 'original'.
  */

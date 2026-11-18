@@ -285,4 +285,30 @@ describe("Listing images", () => {
     await t.http().get(`/api/listings/${listing.id}`).expect(404);
     await t.http().get(`/api/listings/${listing.id}/images`).expect(404);
   });
+
+  it("serves a 1200×630 JPEG link-preview image for public listings only", async () => {
+    const listing = await t.listing(owner);
+    await t.http().get(`/api/listings/${listing.id}/og-image`).expect(404);
+
+    await t.upload(owner, listing.id, await png("#c33", 800, 600)).expect(201);
+    const res = await t
+      .http()
+      .get(`/api/listings/${listing.id}/og-image`)
+      .buffer(true)
+      .parse((r, cb) => {
+        const chunks: Buffer[] = [];
+        r.on("data", (c: Buffer) => chunks.push(c));
+        r.on("end", () => cb(null, Buffer.concat(chunks)));
+      })
+      .expect(200);
+    expect(res.headers["content-type"]).toBe("image/jpeg");
+    expect(res.headers["cache-control"]).toContain("public");
+    const meta = await sharp(res.body as Buffer).metadata();
+    expect(meta).toMatchObject({ format: "jpeg", width: 1200, height: 630 });
+
+    await t.db.query(`UPDATE listings SET status = 'draft' WHERE id = $1`, [
+      listing.id,
+    ]);
+    await t.http().get(`/api/listings/${listing.id}/og-image`).expect(404);
+  });
 });

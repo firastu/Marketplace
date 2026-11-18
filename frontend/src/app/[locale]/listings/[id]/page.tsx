@@ -5,7 +5,12 @@ import { SITE_NAME } from '@/config/site';
 import { isLocale, type Locale } from '@/i18n/config';
 import { absoluteUrl, alternates, excerpt, jsonLd, NO_INDEX, OG_LOCALE } from '@/i18n/seo';
 import { isUuid, serverApi } from '@/server/api';
-import { getImageUrl, getPrimaryImage, type Listing } from '@/services/listings.service';
+import {
+  getImageUrl,
+  getOgImageUrl,
+  getPrimaryImage,
+  type Listing,
+} from '@/services/listings.service';
 import type { Rating } from '@/services/users.service';
 import { cityLabel, priceAmount } from '@/utils/format';
 import ListingDetail from './ListingDetail';
@@ -52,7 +57,17 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     [[price, city].filter(Boolean).join(' · '), listing.description].filter(Boolean).join(' — '),
   );
   const cover = getPrimaryImage(listing.images ?? []);
-  const images = cover ? [{ url: getImageUrl(cover, 'medium'), alt: listing.title }] : undefined;
+  const images = cover
+    ? [
+        {
+          url: getOgImageUrl(listing.id, cover.id),
+          width: 1200,
+          height: 630,
+          type: 'image/jpeg',
+          alt: listing.title,
+        },
+      ]
+    : undefined;
   const other = locale === 'ar' ? 'en' : 'ar';
 
   return {

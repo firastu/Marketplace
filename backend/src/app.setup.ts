@@ -118,7 +118,12 @@ export function configureApp(app: NestExpressApplication): void {
   });
 
   const origins = parseCorsOrigins(config.get<string>("CORS_ORIGINS"));
-  app.enableCors({ origin: origins, credentials: true });
+  app.enableCors({
+    origin: origins,
+    credentials: true,
+    // Lets the browser read the file name of the data export download.
+    exposedHeaders: ["Content-Disposition"],
+  });
   app.useWebSocketAdapter(new CorsIoAdapter(app, origins));
 
   app.useGlobalFilters(new DatabaseExceptionFilter());

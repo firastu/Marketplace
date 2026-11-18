@@ -320,7 +320,12 @@ describe("Account recovery & GDPR self-service", () => {
         .http()
         .get("/api/users/me/export")
         .set(...auth(seller))
+        .set("Origin", "http://allowed.test")
         .expect(200);
+      // the browser may read the file name cross-origin
+      expect(res.headers["access-control-expose-headers"]).toContain(
+        "Content-Disposition",
+      );
       expect(res.headers["content-disposition"]).toMatch(
         /attachment; filename="marketplace-data-\d{4}-\d{2}-\d{2}\.json"/,
       );

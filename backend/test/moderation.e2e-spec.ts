@@ -1,4 +1,5 @@
 import { TestApp, TestUser, auth, findSensitiveKeys } from "./helpers";
+import { MailService } from "../src/modules/mail/mail.service";
 
 describe("Reports & moderation", () => {
   let t: TestApp;
@@ -429,5 +430,48 @@ describe("Reports & moderation", () => {
         status: "open",
       }),
     ]);
+  });
+
+  describe("statement of reasons", () => {
+    it("emails the affected user what was decided, why, and how to contest it", async () => {
+      const mail = t.app.get(MailService);
+      mail.outbox.splice(0);
+      const seller = await t.user("notified");
+      const listing = await t.listing(seller, { title: "Notify me listing" });
+
+      await t
+        .http()
+        .post(`/api/admin/listings/${listing.id}/remove`)
+        .set(...auth(mod))
+        .send({ reason: "Counterfeit brand goods" })
+        .expect(200);
+      const removed = mail.outbox.find((m) => m.to === seller.email)!;
+      expect(removed.subject).toContain("Your listing was removed");
+      expect(removed.text).toContain("«Notify me listing»");
+      expect(removed.text).toContain("السبب: Counterfeit brand goods");
+      expect(removed.text).toContain("Reason: Counterfeit brand goods");
+      expect(removed.text).toContain("/rules");
+      expect(removed.text).toContain("contest it by replying");
+
+      mail.outbox.splice(0);
+      await t
+        .http()
+        .post(`/api/admin/users/${seller.id}/suspend`)
+        .set(...auth(mod))
+        .send({ reason: "Repeated violations" })
+        .expect(200);
+      expect(mail.outbox).toHaveLength(1);
+      expect(mail.outbox[0].subject).toContain("Your account was suspended");
+
+      mail.outbox.splice(0);
+      await t
+        .http()
+        .post(`/api/admin/users/${seller.id}/reactivate`)
+        .set(...auth(mod))
+        .send({})
+        .expect(200);
+      expect(mail.outbox[0].subject).toContain("Your account was reactivated");
+      expect(mail.outbox[0].text).not.toContain("contest");
+    });
   });
 });

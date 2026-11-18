@@ -9,6 +9,10 @@ import { InjectRepository } from "@nestjs/typeorm";
 import { Repository, SelectQueryBuilder } from "typeorm";
 import { Listing, PENDING_REVIEW, PUBLIC_STATUSES } from "./listing.entity";
 import { findProhibitedTerms } from "../moderation/prohibited-terms";
+import sharp from "sharp";
+import { readFile } from "fs/promises";
+import { join } from "path";
+import { UPLOAD_DIR } from "../../common/image-upload.utils";
 import { ListingImage } from "./listing-image.entity";
 import { Category } from "../categories/category.entity";
 import { CreateListingDto } from "./dto/create-listing.dto";
@@ -183,6 +187,29 @@ export class ListingsService {
       listing.viewsCount += 1;
     }
     return listing;
+  }
+
+  /**
+   * Link-preview image (Open Graph): the cover photo as a 1200×630 JPEG.
+   * Chat apps and social networks handle WebP unevenly, JPEG everywhere.
+   * Only for publicly visible listings; doesn't count as a view.
+   */
+  async ogImage(id: string): Promise<Buffer> {
+    const listing = await this.findById(id);
+    if (!PUBLIC_STATUSES.includes(listing.status) || !listing.user?.isActive) {
+      throw new NotFoundException("Listing not found");
+    }
+    const cover =
+      listing.images?.find((img) => img.isPrimary) ?? listing.images?.[0];
+    const key = cover?.storageKeyLarge ?? cover?.storageKeyMedium;
+    if (!key) throw new NotFoundException("This listing has no photo");
+    const source = await readFile(join(UPLOAD_DIR, key)).catch(() => null);
+    if (!source) throw new NotFoundException("This listing has no photo");
+    return sharp(source)
+      .resize(1200, 630, { fit: "cover", position: "attention" })
+      .flatten({ background: "#ffffff" })
+      .jpeg({ quality: 82, mozjpeg: true })
+      .toBuffer();
   }
 
   async findByUser(
