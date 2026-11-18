@@ -10,6 +10,7 @@ import { Favorite } from "../favorites/favorite.entity";
 import { Conversation } from "../messages/conversation.entity";
 import { Message } from "../messages/message.entity";
 import { Review } from "../reviews/review.entity";
+import { Report } from "../moderation/report.entity";
 import { AccountController } from "./account.controller";
 import { AccountService } from "./account.service";
 import { RetentionService } from "./retention.service";
@@ -27,6 +28,7 @@ import { RetentionService } from "./retention.service";
       Conversation,
       Message,
       Review,
+      Report,
     ]),
   ],
   controllers: [AccountController],

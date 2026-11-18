@@ -16,6 +16,7 @@ import { Conversation } from "../messages/conversation.entity";
 import { Message } from "../messages/message.entity";
 import { MessagesGateway } from "../messages/messages.gateway";
 import { Review } from "../reviews/review.entity";
+import { Report } from "../moderation/report.entity";
 import { TERMS_VERSION } from "../../common/terms";
 import {
   ChangePasswordDto,
@@ -59,6 +60,7 @@ export class AccountService {
     private readonly conversations: Repository<Conversation>,
     @InjectRepository(Message) private readonly messages: Repository<Message>,
     @InjectRepository(Review) private readonly reviews: Repository<Review>,
+    @InjectRepository(Report) private readonly reportsRepo: Repository<Report>,
   ) {}
 
   async updateProfile(
@@ -133,6 +135,11 @@ export class AccountService {
       order: { createdAt: "DESC" },
     });
 
+    const reportsFiled = await this.reportsRepo.find({
+      where: { reporterId: userId },
+      order: { createdAt: "DESC" },
+    });
+
     return {
       exportedAt: new Date().toISOString(),
       notes:
@@ -189,6 +196,14 @@ export class AccountService {
         rating: r.rating,
         title: r.title,
         body: r.body,
+        createdAt: r.createdAt,
+      })),
+      reportsFiled: reportsFiled.map((r) => ({
+        targetType: r.targetType,
+        targetId: r.targetId,
+        reason: r.reason,
+        details: r.details,
+        status: r.status,
         createdAt: r.createdAt,
       })),
       reviewsReceived: reviewsReceived.map((r) => ({

@@ -1,6 +1,6 @@
 -- ============================================================
 -- Marketplace App: Full Schema (Phase 1 + Phase 2)
--- Generated from individual migration files (001–011)
+-- Generated from individual migration files (001–013)
 -- ============================================================
 
 -- Extensions
@@ -236,3 +236,113 @@ CREATE INDEX idx_listings_search_trgm
 
 -- Arabic category names (migration 011)
 ALTER TABLE categories ADD COLUMN name_ar VARCHAR(100);
+
+-- ============================================================
+-- 012_account_recovery_and_gdpr.sql
+-- ============================================================
+
+-- Migration 012: password reset, consent records and account deletion
+--
+-- users.terms_accepted_at / terms_version
+--     When and which version of the Terms and Privacy Policy the user
+--     accepted at sign-up (GDPR: demonstrable consent to the contract).
+-- users.token_version
+--     Copied into every login token. Changing or resetting the password
+--     (or deleting the account) increments it, which invalidates all
+--     tokens issued before, i.e. signs out every other session. A counter
+--     is exact; comparing token timestamps (1 s precision) is not.
+-- users.password_changed_at
+--     When the password was last changed (informational).
+-- users.deleted_at
+--     Set when the user deletes their account. Personal data is erased in
+--     the same transaction; the row stays so their messages in other
+--     people's chats keep a (now anonymous) sender.
+-- password_reset_tokens
+--     One-time reset links. Only a SHA-256 hash of the token is stored.
+
+ALTER TABLE users
+    ADD COLUMN terms_accepted_at TIMESTAMPTZ,
+    ADD COLUMN terms_version VARCHAR(20),
+    ADD COLUMN token_version INTEGER NOT NULL DEFAULT 0,
+    ADD COLUMN password_changed_at TIMESTAMPTZ,
+    ADD COLUMN deleted_at TIMESTAMPTZ;
+
+CREATE TABLE password_reset_tokens (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token_hash CHAR(64) NOT NULL UNIQUE,
+    expires_at TIMESTAMPTZ NOT NULL,
+    used_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_password_reset_tokens_user ON password_reset_tokens (user_id);
+CREATE INDEX idx_password_reset_tokens_expires ON password_reset_tokens (expires_at);
+
+-- ============================================================
+-- 013_reports_and_moderation.sql
+-- ============================================================
+
+-- Migration 013: reports and moderation
+--
+-- listings.status 'pending_review'
+--     Listings whose text matches the prohibited-terms list (weapons,
+--     drugs, forged documents…) are held for a moderator instead of going
+--     live. moderation_flags keeps the matched terms.
+-- reports
+--     Users report listings or other users. One open report per reporter
+--     and target (partial unique index). Status follows the MVP spec:
+--     open → under_review → resolved | dismissed.
+-- moderation_actions
+--     Audit log of every moderator decision, with its reason.
+
+ALTER TABLE listings DROP CONSTRAINT listings_status_check;
+ALTER TABLE listings ADD CONSTRAINT listings_status_check CHECK (
+    status IN ('draft', 'active', 'sold', 'reserved', 'expired', 'removed', 'pending_review')
+);
+ALTER TABLE listings ADD COLUMN moderation_flags TEXT[] NOT NULL DEFAULT '{}';
+CREATE INDEX idx_listings_pending_review
+    ON listings (created_at)
+    WHERE status = 'pending_review' AND deleted_at IS NULL;
+
+CREATE TABLE reports (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    reporter_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    target_type VARCHAR(20) NOT NULL CHECK (target_type IN ('listing', 'user')),
+    target_id UUID NOT NULL,
+    reason VARCHAR(30) NOT NULL CHECK (reason IN (
+        'prohibited_item', 'scam', 'counterfeit', 'offensive',
+        'harassment', 'spam', 'wrong_category', 'other'
+    )),
+    details TEXT,
+    status VARCHAR(20) NOT NULL DEFAULT 'open'
+        CHECK (status IN ('open', 'under_review', 'resolved', 'dismissed')),
+    resolution_note TEXT,
+    resolved_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    resolved_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX uq_reports_open_per_reporter_target
+    ON reports (reporter_id, target_type, target_id)
+    WHERE status IN ('open', 'under_review');
+CREATE INDEX idx_reports_status_created ON reports (status, created_at DESC);
+CREATE INDEX idx_reports_target ON reports (target_type, target_id);
+
+CREATE TABLE moderation_actions (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    moderator_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    action VARCHAR(30) NOT NULL CHECK (action IN (
+        'approve_listing', 'remove_listing', 'restore_listing',
+        'suspend_user', 'reactivate_user', 'resolve_report', 'dismiss_report'
+    )),
+    target_type VARCHAR(20) NOT NULL CHECK (target_type IN ('listing', 'user', 'report')),
+    target_id UUID NOT NULL,
+    reason TEXT,
+    report_id UUID REFERENCES reports(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_moderation_actions_created ON moderation_actions (created_at DESC);
+CREATE INDEX idx_moderation_actions_target ON moderation_actions (target_type, target_id);

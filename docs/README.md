@@ -226,6 +226,28 @@ All endpoints are prefixed with `/api`. Protected endpoints require `Authorizati
 
 **Server-side rendering**: requests with header `X-Internal-Key` equal to `INTERNAL_API_KEY` (at least 32 characters) skip rate limiting. Only the web app's server sends it.
 
+### Reports & Moderation
+
+| Method | Endpoint | Auth | Description |
+| ------ | -------- | ---- | ----------- |
+| POST | `/reports` | Yes | `{ targetType: "listing" \| "user", targetId, reason, details? }`. One open report per user and target (409 otherwise); not your own listing or yourself (400); hidden or unknown targets are 404 |
+| GET | `/admin/stats` | Staff | `{ openReports, pendingListings }` |
+| GET | `/admin/reports?status=open\|under_review\|resolved\|dismissed\|all` | Staff | Reports queue (paginated) with reporter, target listing/user and the number of open reports on the target |
+| PATCH | `/admin/reports/:id` | Staff | `{ status: "under_review" \| "resolved" \| "dismissed", note? }` |
+| GET | `/admin/listings/pending` | Staff | Listings held for review, with `moderationFlags` |
+| POST | `/admin/listings/:id/approve` | Staff | Publish a held listing (`{ note? }`) |
+| POST | `/admin/listings/:id/remove` | Staff | `{ reason }` (required): status `removed`, resolves the listing's open reports |
+| POST | `/admin/listings/:id/restore` | Staff | Removed → active |
+| POST | `/admin/users/:id/suspend` | Staff | `{ reason }` (required): deactivates the account (signed out, listings hidden, sockets closed), resolves reports about the user |
+| POST | `/admin/users/:id/reactivate` | Staff | Undo a suspension |
+| GET | `/admin/actions` | Staff | Moderation log, newest first |
+
+Staff = role `admin` or `moderator` (others get 403). Nobody can act on themselves, and moderators can't act on admins. Every decision is logged in `moderation_actions` with its reason. Grant the role with `bash database/scripts/make-admin.sh user@example.com [admin|moderator|user]`; it takes effect on the next request.
+
+`reason` values: `prohibited_item`, `scam`, `counterfeit`, `offensive`, `harassment`, `spam`, `wrong_category`, `other`.
+
+**Listings held for review**: when a listing's title or description contains a prohibited term (weapons, ammunition, drugs incl. captagon, forged documents; Arabic and English, matched after Arabic normalisation; see `backend/src/modules/moderation/prohibited-terms.ts`), it is saved with status `pending_review` and `moderationFlags`. It is hidden from everyone except the owner and staff, the owner can't change its status, and an edit that removes the terms publishes it again. Price-only edits don't re-check the text, so an approved listing stays approved.
+
 ### Users Module
 
 | Method | Endpoint       | Auth | Description             |
@@ -262,7 +284,7 @@ Categories carry `name` (English) and `nameAr` (Arabic, may be null — fall bac
 - `GET /listings` filters: `q`, `categoryId` (includes subcategories), `userId` (one seller's listings), `currency`, `minPrice`, `maxPrice`, `condition`, `locationCity`, `sortBy`.
 - Seller objects (`listing.user`, and users anywhere else in responses) only contain public fields: `id, username, displayName, avatarUrl, bio, isVerified, createdAt`. Email and phone are only returned to the account owner (`/auth/me`, login, register).
 
-**Status values**: `draft`, `active`, `sold`, `reserved`, `expired`, `removed`
+**Status values**: `draft`, `active`, `sold`, `reserved`, `expired`, `removed`, `pending_review` (held for moderation)
 
 - Owners may set `active`, `reserved` or `sold`. `removed` is reserved for moderators; a removed listing can no longer be edited by its owner.
 - `active`, `reserved` and `sold` listings are public. `draft`, `expired` and `removed` listings return 404 to everyone except the owner (send the token; `GET /listings/:id` accepts an optional `Authorization` header).

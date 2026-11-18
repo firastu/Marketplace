@@ -7,7 +7,8 @@ import {
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository, SelectQueryBuilder } from "typeorm";
-import { Listing, PUBLIC_STATUSES } from "./listing.entity";
+import { Listing, PENDING_REVIEW, PUBLIC_STATUSES } from "./listing.entity";
+import { findProhibitedTerms } from "../moderation/prohibited-terms";
 import { ListingImage } from "./listing-image.entity";
 import { Category } from "../categories/category.entity";
 import { CreateListingDto } from "./dto/create-listing.dto";
@@ -201,11 +202,15 @@ export class ListingsService {
 
   async create(userId: string, dto: CreateListingDto): Promise<Listing> {
     await this.assertCategoryExists(dto.categoryId);
+    // Weapons, drugs, forged documents…: held for a moderator, not published.
+    const flags = findProhibitedTerms(dto.title, dto.description);
     const listing = this.listingsRepo.create({
       ...dto,
       currency: (dto.currency as Listing["currency"]) ?? "SYP",
       userId,
       slug: generateSlug(dto.title),
+      status: flags.length ? PENDING_REVIEW : "active",
+      moderationFlags: flags,
     });
     const saved = await this.listingsRepo.save(listing);
     return this.findById(saved.id);
@@ -225,6 +230,22 @@ export class ListingsService {
       ...(dto as Partial<Listing>),
       ...(dto.title ? { slug: generateSlug(dto.title) } : {}),
     };
+
+    // Re-check the text only when it changes, so a price edit on a listing a
+    // moderator approved doesn't send it back to review.
+    if (dto.title !== undefined || dto.description !== undefined) {
+      const flags = findProhibitedTerms(
+        dto.title ?? listing.title,
+        dto.description ?? listing.description,
+      );
+      changes.moderationFlags = flags;
+      if (flags.length) {
+        changes.status = PENDING_REVIEW;
+      } else if (listing.status === PENDING_REVIEW) {
+        changes.status = "active";
+      }
+    }
+
     await this.listingsRepo.update(id, changes);
     return this.findById(id);
   }
@@ -237,6 +258,11 @@ export class ListingsService {
     const listing = await this.findById(id);
     this.assertOwnership(listing, userId);
     this.assertNotRemoved(listing);
+    if (listing.status === PENDING_REVIEW) {
+      throw new ForbiddenException(
+        "This listing is under review; its status can't be changed until a moderator has checked it",
+      );
+    }
     await this.listingsRepo.update(id, { status });
     return this.findById(id);
   }
