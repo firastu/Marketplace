@@ -8,12 +8,17 @@ type Params = { params: Promise<{ locale: string }> };
 /**
  * `generateMetadata` for a route whose <title> is one translated string:
  *   export const generateMetadata = titleMetadata('categories');
+ * `sellerDescription` takes arguments and is used by the seller page only.
  */
-export function titleMetadata(key: Exclude<keyof Messages['meta'], 'titleDefault'>) {
+export function titleMetadata(
+  key: Exclude<keyof Messages['meta'], 'titleDefault' | 'sellerDescription'>,
+  /** Extra metadata, e.g. `{ robots: NO_INDEX }` for private pages. */
+  extra: Metadata = {},
+) {
   return async function generateMetadata({ params }: Params): Promise<Metadata> {
     const { locale } = await params;
     if (!isLocale(locale)) return {};
     const t = await getTranslations({ locale, namespace: 'meta' });
-    return { title: t(key) };
+    return { ...extra, title: t(key) };
   };
 }

@@ -132,3 +132,34 @@ export function uploadWithProgress<T>(
     xhr.send(body);
   });
 }
+
+/**
+ * Downloads a file from an endpoint that needs the login token (a plain
+ * link cannot send the Authorization header) and hands it to the browser.
+ */
+export async function downloadWithAuth(endpoint: string, fallbackName: string): Promise<void> {
+  const token = getToken();
+  let res: Response;
+  try {
+    res = await fetch(`${API_URL}${endpoint}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+  } catch {
+    throw new ApiError('Network error', 0);
+  }
+  if (!res.ok) {
+    const payload = await res.json().catch(() => null);
+    if (res.status === 401 && token) window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
+    throw new ApiError(errorMessage(payload, res.status), res.status);
+  }
+  // Only readable cross-origin when the server exposes the header.
+  const named = /filename="?([^";]+)"?/.exec(res.headers.get('Content-Disposition') ?? '')?.[1];
+  const url = URL.createObjectURL(await res.blob());
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = named || fallbackName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}

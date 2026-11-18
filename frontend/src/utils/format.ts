@@ -13,7 +13,15 @@ export type Currency = (typeof CURRENCIES)[number];
 export const CONDITIONS = ['new', 'like_new', 'used', 'fair', 'poor'] as const;
 export type Condition = (typeof CONDITIONS)[number];
 
-export const STATUSES = ['draft', 'active', 'reserved', 'sold', 'expired', 'removed'] as const;
+export const STATUSES = [
+  'draft',
+  'active',
+  'reserved',
+  'sold',
+  'expired',
+  'removed',
+  'pending_review',
+] as const;
 export type Status = (typeof STATUSES)[number];
 
 export const SORT_OPTIONS = ['newest', 'price_asc', 'price_desc'] as const;
@@ -66,6 +74,7 @@ const STATUS_TONES: Record<string, Tone> = {
   draft: 'info',
   expired: 'neutral',
   removed: 'danger',
+  pending_review: 'warning',
 };
 
 export function statusTone(status: string): Tone {

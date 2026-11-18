@@ -31,11 +31,24 @@ const KNOWN_MESSAGES: Record<string, ErrorKey> = {
   'The image could not be processed. Try a different photo.': 'invalidImage',
   'Image dimensions are too large': 'imageTooLarge',
   'Upload cancelled': 'uploadCancelled',
+  'This reset link is invalid or has expired': 'resetInvalid',
+  'Current password is incorrect': 'currentPasswordWrong',
+  'Password is incorrect': 'passwordWrong',
+  'You have already reported this': 'alreadyReported',
+  'You must accept the Terms and the Privacy Policy': 'termsRequired',
+  'Session expired or account unavailable': 'sessionExpired',
+  'Insufficient permissions': 'staffOnly',
+  "You can't report your own listing": 'cannotReportOwn',
+  "You can't report yourself": 'cannotReportOwn',
+  "Moderators can't take actions on admins": 'cannotModerate',
+  "You can't take moderation actions on yourself": 'cannotModerate',
 };
 
 const KNOWN_PREFIXES: [string, ErrorKey][] = [
   ['Unsupported image format', 'invalidImage'],
   ['Maximum 15 images', 'maxImages'],
+  ['phone must be in international format', 'phoneInvalid'],
+  ['This listing is under review', 'pendingStatusLocked'],
 ];
 
 const BY_STATUS: Record<number, ErrorKey> = {
