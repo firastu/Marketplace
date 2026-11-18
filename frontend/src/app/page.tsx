@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback, Suspense } from 'react';
+import { useEffect, useMemo, useState, useCallback, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
@@ -32,78 +32,125 @@ function flatCategories(cats: Category[]): Category[] {
   return cats.flatMap((c) => [c, ...flatCategories(c.children || [])]);
 }
 
+const FILTER_KEYS = [
+  'q',
+  'categoryId',
+  'minPrice',
+  'maxPrice',
+  'condition',
+  'currency',
+  'sortBy',
+] as const;
+type FilterKey = (typeof FILTER_KEYS)[number];
+type Filters = Record<FilterKey, string>;
+
+type Result =
+  | { key: string; data: PaginatedListings; error?: undefined }
+  | { key: string; data?: undefined; error: string };
+
 function HomePageInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
-  const [data, setData] = useState<PaginatedListings | null>(null);
-  const [loading, setLoading] = useState(true);
+  // The URL is the single source of truth for what is shown. The filters
+  // used to be copied into component state once, on mount, so the Back
+  // button, the "Browse" link and links from the Categories page changed
+  // the address bar but not the results.
+  const urlKey = searchParams.toString();
+  const filters = useMemo(() => {
+    const params = new URLSearchParams(urlKey);
+    const values = {} as Filters;
+    for (const key of FILTER_KEYS) values[key] = params.get(key) || '';
+    values.sortBy = values.sortBy || 'newest';
+    return values;
+  }, [urlKey]);
+  const page = useMemo(() => {
+    const parsed = parseInt(new URLSearchParams(urlKey).get('page') || '1', 10);
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : 1;
+  }, [urlKey]);
+  const { categoryId, condition, currency, sortBy } = filters;
+
+  const [result, setResult] = useState<Result | null>(null);
+  const [retry, setRetry] = useState(0);
   const [categories, setCategories] = useState<Category[]>([]);
   const [showFilters, setShowFilters] = useState(false);
 
-  const [search, setSearch] = useState(searchParams.get('q') || '');
-  const [categoryId, setCategoryId] = useState(searchParams.get('categoryId') || '');
-  const [minPrice, setMinPrice] = useState(searchParams.get('minPrice') || '');
-  const [maxPrice, setMaxPrice] = useState(searchParams.get('maxPrice') || '');
-  const [condition, setCondition] = useState(searchParams.get('condition') || '');
-  const [currency, setCurrency] = useState(searchParams.get('currency') || '');
-  const [sortBy, setSortBy] = useState(searchParams.get('sortBy') || 'newest');
-
-  const page = parseInt(searchParams.get('page') || '1', 10);
+  // Text inputs are drafts: they are applied on submit / blur, not on
+  // every keystroke (which sent one request and one history entry per
+  // character), and follow the URL when it changes.
+  const [search, setSearch] = useState(filters.q);
+  const [minPrice, setMinPrice] = useState(filters.minPrice);
+  const [maxPrice, setMaxPrice] = useState(filters.maxPrice);
+  const [syncedKey, setSyncedKey] = useState(urlKey);
+  if (syncedKey !== urlKey) {
+    setSyncedKey(urlKey);
+    setSearch(filters.q);
+    setMinPrice(filters.minPrice);
+    setMaxPrice(filters.maxPrice);
+  }
 
   useEffect(() => {
     getCategories().then(setCategories).catch(() => {});
   }, []);
 
-  const fetchListings = useCallback(
-    (overrides: Partial<ListingSearchParams> = {}) => {
-      setLoading(true);
-      const params: ListingSearchParams = {
-        page,
-        limit: 20,
-        q: search || undefined,
-        categoryId: categoryId || undefined,
-        minPrice: minPrice ? Number(minPrice) : undefined,
-        maxPrice: maxPrice ? Number(maxPrice) : undefined,
-        condition: condition || undefined,
-        currency: (currency || undefined) as Currency | undefined,
-        sortBy: sortBy as ListingSearchParams['sortBy'],
-        ...overrides,
-      };
-      getListings(params)
-        .then(setData)
-        .catch(() => setData(null))
-        .finally(() => setLoading(false));
-    },
-    [page, search, categoryId, minPrice, maxPrice, condition, currency, sortBy],
-  );
-
+  const requestKey = `${urlKey}#${retry}`;
   useEffect(() => {
-    fetchListings();
-  }, [fetchListings]);
+    // A slow response for an older search must not overwrite a newer one.
+    let cancelled = false;
+    const params: ListingSearchParams = {
+      page,
+      limit: 20,
+      q: filters.q || undefined,
+      categoryId: filters.categoryId || undefined,
+      minPrice: filters.minPrice ? Number(filters.minPrice) : undefined,
+      maxPrice: filters.maxPrice ? Number(filters.maxPrice) : undefined,
+      condition: filters.condition || undefined,
+      currency: (filters.currency || undefined) as Currency | undefined,
+      sortBy: filters.sortBy as ListingSearchParams['sortBy'],
+    };
+    getListings(params)
+      .then((data) => {
+        if (!cancelled) setResult({ key: requestKey, data });
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setResult({
+          key: requestKey,
+          error: err instanceof Error ? err.message : 'Could not load listings',
+        });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [filters, page, requestKey]);
+
+  const loading = result?.key !== requestKey;
+  const data = !loading && result?.data ? result.data : null;
+  const loadError = !loading && result?.error ? result.error : '';
 
   const buildUrl = useCallback(
     (overrides: Record<string, string | number | undefined>) => {
       const params = new URLSearchParams();
-      const values = {
-        q: search,
-        categoryId,
+      const values: Record<string, string | number | undefined> = {
+        ...filters,
+        // drafts the user typed but has not applied yet
+        q: search.trim(),
         minPrice,
         maxPrice,
-        condition,
-        currency,
-        sortBy,
-        page: String(page),
+        page,
         ...overrides,
       };
       for (const [key, value] of Object.entries(values)) {
-        if (value !== '' && value !== undefined) {
+        const isDefault =
+          (key === 'sortBy' && value === 'newest') || (key === 'page' && Number(value) === 1);
+        if (value !== '' && value !== undefined && !isDefault) {
           params.set(key, String(value));
         }
       }
-      return `/?${params.toString()}`;
+      const query = params.toString();
+      return query ? `/?${query}` : '/';
     },
-    [search, categoryId, minPrice, maxPrice, condition, currency, sortBy, page],
+    [filters, search, minPrice, maxPrice, page],
   );
 
   const handleSearch = (e: React.FormEvent) => {
@@ -111,30 +158,35 @@ function HomePageInner() {
     router.push(buildUrl({ page: 1 }));
   };
 
-  // The new value is passed in explicitly: right after a setState call the
-  // state variables still hold the previous value, so building the URL from
-  // state alone left the address bar one change behind.
   const handleFilterChange = (changed: Record<string, string>) => {
     router.push(buildUrl({ ...changed, page: 1 }));
   };
+
+  /** Apply a typed price when leaving the field or pressing Enter. */
+  const commitPrice = (key: 'minPrice' | 'maxPrice', value: string) => {
+    if (value !== filters[key]) handleFilterChange({ [key]: value });
+  };
+  const commitOnEnter =
+    (key: 'minPrice' | 'maxPrice') => (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'Enter') commitPrice(key, e.currentTarget.value);
+    };
 
   const handlePage = (newPage: number) => {
     router.push(buildUrl({ page: newPage }));
   };
 
   const clearFilters = () => {
-    setSearch('');
-    setCategoryId('');
-    setMinPrice('');
-    setMaxPrice('');
-    setCondition('');
-    setCurrency('');
-    setSortBy('newest');
     router.push('/');
   };
 
   const hasActiveFilters =
-    search || categoryId || minPrice || maxPrice || condition || currency || page > 1;
+    filters.q ||
+    categoryId ||
+    filters.minPrice ||
+    filters.maxPrice ||
+    condition ||
+    currency ||
+    page > 1;
 
   return (
     <div className="page">
@@ -144,6 +196,8 @@ function HomePageInner() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search listings..."
+            aria-label="Search listings"
+            maxLength={200}
             style={{
               flex: 1,
               padding: '0.5rem 0.75rem',
@@ -186,7 +240,6 @@ function HomePageInner() {
                 id="filter-category"
                 value={categoryId}
                 onChange={(e) => {
-                  setCategoryId(e.target.value);
                   handleFilterChange({ categoryId: e.target.value });
                 }}
                 style={{ width: '100%' }}
@@ -208,7 +261,6 @@ function HomePageInner() {
                 id="filter-condition"
                 value={condition}
                 onChange={(e) => {
-                  setCondition(e.target.value);
                   handleFilterChange({ condition: e.target.value });
                 }}
                 style={{ width: '100%' }}
@@ -229,7 +281,6 @@ function HomePageInner() {
                 id="filter-currency"
                 value={currency}
                 onChange={(e) => {
-                  setCurrency(e.target.value);
                   handleFilterChange({ currency: e.target.value });
                 }}
                 style={{ width: '100%' }}
@@ -253,10 +304,9 @@ function HomePageInner() {
                 min="0"
                 step="0.01"
                 value={minPrice}
-                onChange={(e) => {
-                  setMinPrice(e.target.value);
-                  handleFilterChange({ minPrice: e.target.value });
-                }}
+                onChange={(e) => setMinPrice(e.target.value)}
+                onBlur={(e) => commitPrice('minPrice', e.target.value)}
+                onKeyDown={commitOnEnter('minPrice')}
                 placeholder="0"
                 style={{ width: '100%' }}
               />
@@ -272,10 +322,9 @@ function HomePageInner() {
                 min="0"
                 step="0.01"
                 value={maxPrice}
-                onChange={(e) => {
-                  setMaxPrice(e.target.value);
-                  handleFilterChange({ maxPrice: e.target.value });
-                }}
+                onChange={(e) => setMaxPrice(e.target.value)}
+                onBlur={(e) => commitPrice('maxPrice', e.target.value)}
+                onKeyDown={commitOnEnter('maxPrice')}
                 placeholder="Any"
                 style={{ width: '100%' }}
               />
@@ -289,7 +338,6 @@ function HomePageInner() {
                 id="filter-sort"
                 value={sortBy}
                 onChange={(e) => {
-                  setSortBy(e.target.value);
                   handleFilterChange({ sortBy: e.target.value });
                 }}
                 style={{ width: '100%' }}
@@ -320,7 +368,21 @@ function HomePageInner() {
 
       {loading && <div className="loading">Loading listings...</div>}
 
-      {!loading && (!data || data.data.length === 0) && (
+      {loadError && (
+        <div className="form-error" role="alert">
+          Could not load listings: {loadError}{' '}
+          <button
+            type="button"
+            onClick={() => setRetry((n) => n + 1)}
+            className="btn btn-secondary"
+            style={{ width: 'auto', marginLeft: '0.5rem' }}
+          >
+            Try again
+          </button>
+        </div>
+      )}
+
+      {!loading && !loadError && (!data || data.data.length === 0) && (
         <div className="empty">
           <p>No listings found. Try adjusting your search or filters.</p>
           {hasActiveFilters && (
