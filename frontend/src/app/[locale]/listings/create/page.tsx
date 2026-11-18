@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/navigation';
-import { PartyPopper } from 'lucide-react';
+import { Hourglass, PartyPopper } from 'lucide-react';
 import { useRequireAuth } from '@/hooks/use-require-auth';
 import { createListing, Listing } from '@/services/listings.service';
 import { ListingForm } from '@/components/ListingForm';
@@ -18,6 +18,9 @@ export default function CreateListingPage() {
   const [step, setStep] = useState(0);
   const [photoCount, setPhotoCount] = useState(0);
   const t = useTranslations('create');
+  // Held by the prohibited-terms check: visible to buyers only after a
+  // moderator has approved it.
+  const held = listing?.status === 'pending_review';
 
   if (!user) return <div className={`container page page--narrow ${styles.loading}`} aria-busy="true" />;
 
@@ -46,6 +49,12 @@ export default function CreateListingPage() {
 
       {step === 1 && listing && (
         <section className={`card card--pad ${styles.section}`}>
+          {held && (
+            <div className="notice notice--warning" role="status">
+              <Hourglass aria-hidden="true" />
+              <span className="notice__body">{t('heldNotice')}</span>
+            </div>
+          )}
           <div>
             <h2>{t('addPhotos')}</h2>
             <p className="muted">{t('photosLead')}</p>
@@ -59,11 +68,22 @@ export default function CreateListingPage() {
 
       {step === 2 && listing && (
         <section className={`card card--pad ${styles.done}`}>
-          <span className={styles.doneIcon} aria-hidden="true">
-            <PartyPopper />
+          <span className={styles.doneIcon} data-held={held || undefined} aria-hidden="true">
+            {held ? <Hourglass /> : <PartyPopper />}
           </span>
-          <h2>{t('liveTitle')}</h2>
-          <p className="muted">{t('liveBody', { title: listing.title })}</p>
+          <h2>{held ? t('heldTitle') : t('liveTitle')}</h2>
+          <p className="muted">
+            {held ? (
+              <>
+                {t('heldBody', { title: listing.title })}{' '}
+                <Link href="/rules#prohibited" className="link">
+                  {t('heldRules')}
+                </Link>
+              </>
+            ) : (
+              t('liveBody', { title: listing.title })
+            )}
+          </p>
           <div className={styles.doneActions}>
             <Link
               href={`/listings/${listing.id}`}

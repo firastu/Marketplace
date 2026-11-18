@@ -346,6 +346,11 @@
   color: var(--success);
 }
 
+.notice--warning {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
 .notice__body {
   flex: 1;
   min-inline-size: 0;

@@ -11,7 +11,14 @@
     "myListings": "My listings",
     "createListing": "Sell something",
     "editListing": "Edit listing",
-    "notFound": "Page not found"
+    "notFound": "Page not found",
+    "listing": "Listing",
+    "seller": "Seller",
+    "sellerDescription": "{name} on {site}: listings and reviews.",
+    "forgotPassword": "Forgot password",
+    "resetPassword": "Set a new password",
+    "account": "Account settings",
+    "admin": "Moderation"
   },
   "common": {
     "tryAgain": "Try again",
@@ -47,7 +54,9 @@
     "chats": "Chats",
     "me": "Me",
     "language": "Language",
-    "switchLanguage": "Switch language to {language}"
+    "switchLanguage": "Switch language to {language}",
+    "account": "Account settings",
+    "moderation": "Moderation"
   },
   "format": {
     "free": "Free",
@@ -75,7 +84,8 @@
       "reserved": "Reserved",
       "sold": "Sold",
       "expired": "Expired",
-      "removed": "Removed"
+      "removed": "Removed",
+      "pending_review": "Under review"
     },
     "sort": {
       "newest": "Newest first",
@@ -110,7 +120,18 @@
     "invalidImage": "This file is not a usable photo. Use a JPEG, PNG or WebP image.",
     "imageTooLarge": "The photo's dimensions are too large. Try a smaller one.",
     "maxImages": "A listing can have up to 15 photos.",
-    "uploadCancelled": "Upload cancelled."
+    "uploadCancelled": "Upload cancelled.",
+    "resetInvalid": "This reset link is invalid or has expired. Request a new one.",
+    "currentPasswordWrong": "The current password is not correct.",
+    "passwordWrong": "The password is not correct.",
+    "alreadyReported": "You have already reported this. Our moderators are looking at it.",
+    "termsRequired": "Please accept the Terms and the Privacy Policy to create an account.",
+    "phoneInvalid": "Enter the phone number in international format, for example +963933123456.",
+    "cannotReportOwn": "You cannot report yourself or your own listing.",
+    "sessionExpired": "Your session has ended. Please log in again.",
+    "staffOnly": "Only moderators can do this.",
+    "cannotModerate": "You cannot take this action on this account.",
+    "pendingStatusLocked": "This listing is under review; its status cannot be changed yet."
   },
   "feedback": {
     "favoriteAdded": "Saved to your favorites",
@@ -228,7 +249,10 @@
     "newHere": "New here?",
     "createAccount": "Create an account",
     "haveAccount": "Already have an account?",
-    "login": "Log in"
+    "login": "Log in",
+    "forgot": "Forgot password?",
+    "consent": "I accept the <terms>Terms of Use</terms> and have read the <privacy>Privacy Policy</privacy>.",
+    "consentRequired": "Please accept the Terms and confirm that you have read the Privacy Policy."
   },
   "listing": {
     "loading": "Loading listing",
@@ -275,7 +299,10 @@
     },
     "deleteTitle": "Delete this listing?",
     "deleteBody": "It disappears from search right away. Your chats about it are kept.",
-    "deleteBodyNamed": "<b>{title}</b> disappears from search right away. Your chats about it are kept."
+    "deleteBodyNamed": "<b>{title}</b> disappears from search right away. Your chats about it are kept.",
+    "report": "Report this listing",
+    "safetyMore": "More safety tips",
+    "pendingReview": "Under review: this listing is not public yet. A moderator will check it shortly."
   },
   "gallery": {
     "empty": "No photos",
@@ -343,7 +370,11 @@
     "liveBody": "“{title}” can now be found by buyers. You will see their messages under Chats.",
     "view": "View listing",
     "editOrPhotos": "Edit or add photos",
-    "another": "Sell another item"
+    "another": "Sell another item",
+    "heldNotice": "This listing will be checked by a moderator before buyers can see it. You can add photos in the meantime.",
+    "heldTitle": "Your listing is under review",
+    "heldBody": "“{title}” mentions something from our list of restricted items, so a moderator will check it before it goes live. You will find it under My listings.",
+    "heldRules": "See what may not be offered"
   },
   "edit": {
     "title": "Edit listing",
@@ -361,7 +392,11 @@
     "save": "Save changes",
     "saved": "Changes saved",
     "deleteTitle": "Delete listing",
-    "deleteLead": "Sold it elsewhere or changed your mind?"
+    "deleteLead": "Sold it elsewhere or changed your mind?",
+    "held": "This listing is under review and not public yet. A moderator will approve or remove it; you can still edit it.",
+    "heldRules": "See what may not be offered",
+    "savedHeld": "Saved. The listing is under review before it goes live.",
+    "savedReleased": "Saved. Your listing is live again."
   },
   "my": {
     "title": "My listings",
@@ -412,6 +447,264 @@
     "noListingsBody": "{name} has nothing for sale at the moment.",
     "noReviewsTitle": "No reviews yet",
     "noReviewsBody": "Buyers and sellers can review each other after chatting about a listing.",
-    "about": "About: {title}"
+    "about": "About: {title}",
+    "report": "Report this seller"
+  },
+  "reset": {
+    "forgotTitle": "Forgot your password?",
+    "forgotLead": "Enter the email address of your account and we will send you a link to set a new password.",
+    "sendLink": "Send reset link",
+    "requestFailed": "Could not send the request",
+    "sentTitle": "Check your email",
+    "sentBody": "If an account exists for this email address, we have sent a link to reset the password.",
+    "sentHint": "The link is valid for 60 minutes and can be used once. No email? Check the spam folder, or try again with the address you registered with.",
+    "backToLogin": "Back to log in",
+    "resetTitle": "Set a new password",
+    "resetLead": "Choose a new password for your account. You will be logged out on all devices.",
+    "newPassword": "New password",
+    "confirmPassword": "Repeat new password",
+    "mismatch": "The two passwords do not match.",
+    "setPassword": "Save new password",
+    "resetFailed": "Could not change the password",
+    "done": "Password changed. Log in with your new password.",
+    "invalidTitle": "This link no longer works",
+    "invalidBody": "The reset link is invalid, was already used, or has expired. Links are valid for 60 minutes.",
+    "requestNew": "Request a new link"
+  },
+  "legal": {
+    "heading": "Legal",
+    "pages": {
+      "terms": "Terms of Use",
+      "privacy": "Privacy Policy",
+      "rules": "Community Rules",
+      "imprint": "Imprint"
+    },
+    "description": {
+      "terms": "The agreement between you and {site}: accounts, listings, deals between users, moderation and liability.",
+      "privacy": "Which personal data {site} processes, why, for how long, and your rights under the GDPR.",
+      "rules": "What may not be offered on {site}, how to meet safely, and what happens when you report something.",
+      "imprint": "Provider identification and contact details for {site}."
+    },
+    "updated": "Last updated: {date}",
+    "contents": "On this page",
+    "draftTitle": "Draft — needs legal review.",
+    "draftBody": "This text has not been checked by a lawyer yet, and the highlighted details still have to be filled in."
+  },
+  "account": {
+    "title": "Account settings",
+    "profileTitle": "Profile",
+    "profileLead": "Your name and bio are shown on your public profile. Your phone number is never shown to others.",
+    "bio": "About you",
+    "bioHint": "Optional. Up to 1,000 characters.",
+    "phone": "Phone number",
+    "phoneHint": "Optional, in international format, for example +963933123456.",
+    "saveProfile": "Save profile",
+    "profileSaved": "Profile saved",
+    "profileFailed": "Could not save the profile",
+    "passwordTitle": "Password",
+    "passwordLead": "Changing your password logs you out on all other devices.",
+    "currentPassword": "Current password",
+    "newPassword": "New password",
+    "confirmPassword": "Repeat new password",
+    "mismatch": "The two passwords do not match.",
+    "changePassword": "Change password",
+    "passwordChanged": "Password changed",
+    "passwordFailed": "Could not change the password",
+    "dataTitle": "Your data",
+    "dataLead": "Download a copy of everything your account holds: profile, listings, favorites, conversations, reviews and reports, as a JSON file.",
+    "download": "Download my data",
+    "exportStarted": "Your data file has been downloaded",
+    "exportFailed": "Could not download your data",
+    "dangerTitle": "Delete account",
+    "dangerLead": "Deletes your account and your listings for good. This cannot be undone.",
+    "deleteAccount": "Delete my account",
+    "deleteTitle": "Delete your account?",
+    "deleteGone": "This will be deleted",
+    "gone": {
+      "profile": "Your email address, username, name, phone number and bio",
+      "listings": "All your listings and their photos",
+      "favorites": "Your saved listings and the reviews you wrote"
+    },
+    "deleteStays": "This stays",
+    "stays": {
+      "messages": "Messages you sent stay visible to the person you wrote to, shown as from a deleted user",
+      "reports": "Reports you filed, as part of our moderation records"
+    },
+    "deleteFinal": "This cannot be undone.",
+    "deleteExportFirst": "If you want a copy of your data, download it first.",
+    "deletePassword": "Enter your password to confirm",
+    "deleteConfirm": "Delete account for good",
+    "deleteWrongPassword": "The password is not correct.",
+    "deleteFailed": "Could not delete the account",
+    "deleted": "Your account has been deleted"
+  },
+  "report": {
+    "titleListing": "Report this listing",
+    "titleUser": "Report this seller",
+    "lead": "Tell us what is wrong with <b>{name}</b>. Your report goes to our moderators; the other person is not told who reported them.",
+    "reasonLabel": "What is the problem?",
+    "reason": {
+      "prohibited_item": "Prohibited item (weapons, drugs, documents…)",
+      "scam": "Scam or fraud",
+      "counterfeit": "Counterfeit or stolen goods",
+      "offensive": "Offensive or hateful content",
+      "harassment": "Harassment or threats",
+      "spam": "Spam or duplicate",
+      "wrong_category": "Wrong category",
+      "other": "Something else"
+    },
+    "details": "Details",
+    "detailsHint": "Optional. What should the moderators know?",
+    "rulesNote": "See the <rules>Community Rules</rules> for what is not allowed.",
+    "submit": "Send report",
+    "failed": "Could not send the report",
+    "sentTitle": "Thank you, report received",
+    "sentBody": "A moderator will look at it. If the rules were broken, the listing is removed or the account suspended.",
+    "duplicateTitle": "You have already reported this",
+    "duplicateBody": "Your earlier report is still open and our moderators are looking at it. There is no need to send it again."
+  },
+  "admin": {
+    "title": "Moderation",
+    "sections": "Moderation sections",
+    "role": {
+      "admin": "Admin",
+      "moderator": "Moderator"
+    },
+    "nav": {
+      "overview": "Overview",
+      "reports": "Reports",
+      "listings": "Held listings",
+      "log": "Log"
+    },
+    "waiting": "{n} waiting",
+    "forbiddenTitle": "This area is for moderators",
+    "forbiddenBody": "Your account does not have access to the moderation tools. If you think it should, ask an administrator.",
+    "loading": "Loading",
+    "loadErrorTitle": "Could not load this list",
+    "actionFailed": "The action could not be completed",
+    "unknownUser": "Deleted user",
+    "pages": "Pages",
+    "previous": "Previous",
+    "next": "Next",
+    "pageOf": "Page {page} of {total}",
+    "reasonRequired": "Reason",
+    "reasonHint": "Required. It is saved in the moderation log.",
+    "noteOptional": "Note (optional)",
+    "stats": {
+      "openReports": "Open reports",
+      "openReportsHint": "Waiting for a moderator",
+      "pendingListings": "Held listings",
+      "pendingListingsHint": "Matched a prohibited term"
+    },
+    "reports": {
+      "filterLabel": "Filter reports by status",
+      "status": {
+        "open": "Open",
+        "under_review": "Under review",
+        "resolved": "Resolved",
+        "dismissed": "Dismissed",
+        "all": "All"
+      },
+      "emptyTitle": "No reports here",
+      "emptyOpen": "Nothing is waiting. Good work.",
+      "emptyOther": "There are no reports with this status.",
+      "openOnTarget": "{count, plural, one {{n} open report} other {{n} open reports}}",
+      "listing": "Listing",
+      "user": "Reported user",
+      "seller": "Seller",
+      "account": "Account",
+      "suspended": "Suspended",
+      "reporter": "Reported by",
+      "details": "Details",
+      "note": "Moderator note",
+      "closed": "Closed",
+      "listingGone": "The listing no longer exists"
+    },
+    "act": {
+      "review": "Start review",
+      "resolve": "Resolve",
+      "dismiss": "Dismiss",
+      "removeListing": "Remove listing",
+      "restoreListing": "Restore listing",
+      "suspendUser": "Suspend user",
+      "reactivateUser": "Reactivate user",
+      "approveListing": "Approve"
+    },
+    "confirm": {
+      "resolve": {
+        "title": "Resolve this report?",
+        "body": "Marks the report about <b>{name}</b> as handled. Use this after you have dealt with it.",
+        "confirm": "Resolve report"
+      },
+      "dismiss": {
+        "title": "Dismiss this report?",
+        "body": "Closes the report about <b>{name}</b> without action, because no rule was broken.",
+        "confirm": "Dismiss report"
+      },
+      "removeListing": {
+        "title": "Remove this listing?",
+        "body": "<b>{name}</b> disappears for everyone except its seller, who can no longer change it. Open reports about it are resolved.",
+        "confirm": "Remove listing"
+      },
+      "restoreListing": {
+        "title": "Restore this listing?",
+        "body": "<b>{name}</b> becomes public again.",
+        "confirm": "Restore listing"
+      },
+      "suspendUser": {
+        "title": "Suspend this user?",
+        "body": "<b>{user}</b> is logged out and can no longer log in. All their listings are hidden. Open reports about them are resolved.",
+        "confirm": "Suspend user"
+      },
+      "reactivateUser": {
+        "title": "Reactivate this user?",
+        "body": "<b>{user}</b> can log in again and their listings become visible.",
+        "confirm": "Reactivate user"
+      },
+      "approveListing": {
+        "title": "Approve this listing?",
+        "body": "<b>{name}</b> goes live and buyers can find it.",
+        "confirm": "Approve listing"
+      }
+    },
+    "done": {
+      "under_review": "Report marked as under review",
+      "resolve": "Report resolved",
+      "dismiss": "Report dismissed",
+      "removeListing": "Listing removed",
+      "restoreListing": "Listing restored",
+      "suspendUser": "User suspended",
+      "reactivateUser": "User reactivated",
+      "approveListing": "Listing approved"
+    },
+    "held": {
+      "lead": "These listings matched a prohibited term and are hidden until a moderator decides.",
+      "emptyTitle": "No listings are held",
+      "emptyBody": "New listings that match a prohibited term will wait here.",
+      "matched": "Matched terms",
+      "description": "Description"
+    },
+    "log": {
+      "lead": "Every moderation action, with who took it and why",
+      "emptyTitle": "No actions yet",
+      "emptyBody": "Moderation actions are recorded here.",
+      "when": "When",
+      "action": "Action",
+      "target": "Target",
+      "moderator": "Moderator",
+      "reason": "Reason",
+      "listing": "Listing",
+      "user": "User",
+      "report": "Report",
+      "actions": {
+        "approve_listing": "Listing approved",
+        "remove_listing": "Listing removed",
+        "restore_listing": "Listing restored",
+        "suspend_user": "User suspended",
+        "reactivate_user": "User reactivated",
+        "resolve_report": "Report resolved",
+        "dismiss_report": "Report dismissed"
+      }
+    }
   }
 }

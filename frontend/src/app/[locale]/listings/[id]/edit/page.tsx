@@ -6,7 +6,7 @@ import { useTranslations } from 'next-intl';
 import { useErrorText } from '@/i18n/errors';
 import { Link, useRouter } from '@/i18n/navigation';
 import { useFormat } from '@/i18n/use-format';
-import { ArrowLeft, Lock, SearchX, Trash2 } from 'lucide-react';
+import { ArrowLeft, Hourglass, Lock, SearchX, Trash2 } from 'lucide-react';
 import { useRequireAuth } from '@/hooks/use-require-auth';
 import {
   deleteListing,
@@ -103,6 +103,7 @@ export default function EditListingPage() {
   }
 
   const locked = listing.status === 'removed';
+  const held = listing.status === 'pending_review';
 
   const handleStatus = async (status: OwnerStatus) => {
     setStatusBusy(true);
@@ -151,6 +152,20 @@ export default function EditListingPage() {
         </div>
       ) : (
         <>
+          {held && (
+            <div className={`notice notice--warning ${styles.held}`} role="status">
+              <Hourglass aria-hidden="true" />
+              <span className="notice__body">
+                {t('held')}{' '}
+                <Link href="/rules#prohibited" className="link">
+                  {t('heldRules')}
+                </Link>
+              </span>
+            </div>
+          )}
+
+          {/* While it is held, the status is the moderators' to change. */}
+          {!held && (
           <section className={`card card--pad ${styles.section}`}>
             <h2>{t('availability')}</h2>
             <div className={styles.statusRow} role="group" aria-label={t('statusLabel')}>
@@ -168,6 +183,7 @@ export default function EditListingPage() {
               ))}
             </div>
           </section>
+          )}
 
           <section className={`card card--pad ${styles.section}`}>
             <h2>{t('photos')}</h2>
@@ -181,8 +197,11 @@ export default function EditListingPage() {
               submitLabel={t('save')}
               onSubmit={async (data) => {
                 const updated = await updateListing(listing.id, data);
-                setState({ listing: updated });
-                toast(t('saved'), 'success');
+                // The response has no relations; keep the photos we have.
+                setState({ listing: { ...listing, ...updated } });
+                if (updated.status === 'pending_review') toast(t('savedHeld'), 'info');
+                else if (held) toast(t('savedReleased'), 'success');
+                else toast(t('saved'), 'success');
               }}
             />
           </section>

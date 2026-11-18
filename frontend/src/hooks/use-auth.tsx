@@ -6,6 +6,9 @@ import {
   getStoredUser,
   getMe,
   saveAuth,
+  saveToken,
+  saveUser,
+  RegisterData,
   logout as logoutService,
   login as loginService,
   register as registerService,
@@ -18,8 +21,12 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (data: { username: string; email: string; password: string; displayName: string }) => Promise<void>;
+  register: (data: RegisterData) => Promise<void>;
   logout: () => void;
+  /** After a profile edit: the fresh account as the server returned it. */
+  updateUser: (user: User) => void;
+  /** After a password change: the old token no longer works. */
+  replaceToken: (accessToken: string) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -35,7 +42,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Verify the token is still valid. Only a 401 means it isn't: a
       // dropped connection or a server hiccup must not sign the user out.
       getMe()
-        .then(setUser)
+        .then((fresh) => {
+          saveUser(fresh);
+          setUser(fresh);
+        })
         .catch((err) => {
           if (err instanceof ApiError && err.status === 401) {
             logoutService();
@@ -75,7 +85,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const register = useCallback(
-    async (data: { username: string; email: string; password: string; displayName: string }) => {
+    async (data: RegisterData) => {
       const response = await registerService(data);
       handleAuth(response);
     },
@@ -88,8 +98,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }, []);
 
+  const updateUser = useCallback((next: User) => {
+    saveUser(next);
+    setUser(next);
+  }, []);
+
+  const replaceToken = useCallback((accessToken: string) => {
+    // The open chat socket stays as it is; the next one uses this token.
+    saveToken(accessToken);
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider
+      value={{ user, loading, login, register, logout, updateUser, replaceToken }}
+    >
       {children}
     </AuthContext.Provider>
   );

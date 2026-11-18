@@ -17,19 +17,20 @@ export function loginHref(next: string): string {
 
 /**
  * For pages that need an account: sends guests to the login page and
- * brings them back here afterwards.
+ * brings them back here afterwards. Pass `false` while the page itself is
+ * sending the visitor elsewhere (e.g. right after deleting the account).
  */
-export function useRequireAuth() {
+export function useRequireAuth(enabled = true) {
   const auth = useAuth();
   const router = useRouter();
   const pathname = usePathname();
 
   useEffect(() => {
-    if (!auth.loading && !auth.user) {
+    if (enabled && !auth.loading && !auth.user) {
       const query = typeof window === 'undefined' ? '' : window.location.search;
       router.replace(loginHref(`${pathname}${query}`));
     }
-  }, [auth.loading, auth.user, router, pathname]);
+  }, [enabled, auth.loading, auth.user, router, pathname]);
 
   return auth;
 }

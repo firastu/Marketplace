@@ -12,6 +12,10 @@ const nextConfig = {
   // Self-contained server bundle for the Docker image.
   output: 'standalone',
   poweredByHeader: false,
+  // Always put <title>, description and Open Graph tags in the <head> of the
+  // first HTML chunk. By default Next.js streams them later for visitors it
+  // does not recognise as a bot, which chat apps' link previews can miss.
+  htmlLimitedBots: /.*/,
   async rewrites() {
     return [
       {
