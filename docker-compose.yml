@@ -61,6 +61,19 @@ services:
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
       TRUST_PROXY: ${TRUST_PROXY:-}
+      # Public address of the web app, used in password-reset emails.
+      APP_URL: ${PUBLIC_APP_URL:-http://localhost:3000}
+      # Shared with the frontend so its server-side rendering isn't
+      # rate-limited as one guest. Set a long random value.
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-}
+      # Email (password reset). Without SMTP_HOST, emails are written to
+      # the backend log instead of being sent.
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      MAIL_FROM: ${MAIL_FROM:-}
+      ENABLE_SWAGGER: ${ENABLE_SWAGGER:-false}
     volumes:
       - uploads:/data/uploads
     ports:
@@ -71,9 +84,14 @@ services:
       context: ./frontend
       args:
         NEXT_PUBLIC_BACKEND_URL: ${PUBLIC_BACKEND_URL:-http://localhost:3001}
+        NEXT_PUBLIC_SITE_URL: ${PUBLIC_APP_URL:-http://localhost:3000}
         BACKEND_INTERNAL_URL: http://backend:3001
     profiles: ["app"]
     restart: unless-stopped
+    environment:
+      # Used at runtime by server-rendered pages to fetch from the API.
+      BACKEND_INTERNAL_URL: http://backend:3001
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-}
     depends_on:
       backend:
         condition: service_healthy
