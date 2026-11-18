@@ -90,6 +90,27 @@ docker compose --profile app up -d --build
 This starts PostgreSQL, runs the migrations once, then the API (port 3001)
 and the web app (port 3000). Uploaded images are kept in the `uploads` volume.
 
+### Quick demo on GitHub Codespaces (with the database)
+
+For showing the app to others without renting a server:
+
+1. On GitHub, open the repository → **Code** → **Codespaces** → **Create codespace**
+   (pick the branch to demo).
+2. In the codespace terminal run:
+   ```bash
+   bash scripts/codespace-demo.sh
+   ```
+   It builds and starts PostgreSQL, the API and the web app, loads the categories
+   and demo listings, makes ports 3000/3001 public and prints the link to share.
+   If it can't change the port visibility itself, set ports 3000 and 3001 to
+   **Public** in the **Ports** tab.
+3. Demo account: `alice@example.com` / `password123`.
+
+The link works while the codespace is running; GitHub stops idle codespaces
+(Settings → Codespaces → idle timeout) and the free monthly allowance is
+limited (Settings → Billing). Anyone with the link can use the demo, so don't
+put real data in it. Rerun the script after `git pull` to update.
+
 ## Tests & checks
 
 ```bash
