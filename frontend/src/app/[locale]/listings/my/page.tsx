@@ -12,6 +12,7 @@ import {
   LogOut,
   Pencil,
   Plus,
+  Settings,
   Store,
   Trash2,
   UserRound,
@@ -146,6 +147,10 @@ export default function MyListingsPage() {
             <UserRound aria-hidden="true" />
             {tn('publicProfile')}
           </Link>
+          <Link href="/account" className={buttonClass({ size: 'sm' })}>
+            <Settings aria-hidden="true" />
+            {tn('account')}
+          </Link>
           <LanguageSwitcher className={buttonClass({ size: 'sm' })} />
           <Button
             size="sm"
@@ -275,7 +280,8 @@ export default function MyListingsPage() {
                         <Pencil aria-hidden="true" />
                         {tl('editFull')}
                       </Link>
-                      {listing.status !== 'removed' &&
+                      {/* Removed and held listings: the status is not the seller's to change. */}
+                      {!['removed', 'pending_review'].includes(listing.status) &&
                         STATUS_ACTIONS.filter((a) => a.status !== listing.status).map((a) => (
                           <button
                             key={a.status}

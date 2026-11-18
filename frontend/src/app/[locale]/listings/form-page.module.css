@@ -45,6 +45,11 @@
   animation: pop var(--dur-3) var(--ease);
 }
 
+.doneIcon[data-held] {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
 .doneIcon svg {
   inline-size: 32px;
   block-size: 32px;
@@ -88,4 +93,8 @@
     transform: scale(0.6);
     opacity: 0;
   }
+}
+
+.held {
+  margin-block-end: var(--s-5);
 }
