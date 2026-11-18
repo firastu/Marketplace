@@ -211,6 +211,11 @@ New visual identity ("limestone, ink and apricot") and a real design system; eve
 
 ---
 
+### Wholesale (B2B) — planned
+Spec: `.specify/specs/b2b-wholesale.md` (business accounts and verification, supplier storefronts, wholesale products with pack size / MOQ / price tiers, order requests without online payment, re-order, RFQs). Phases B1 catalogue → B2 ordering → B3 growth, after Arabic i18n lands so it ships bilingual.
+
+---
+
 ## Lint & Typecheck Status
 
 - **Backend**: ✅ 0 errors, 0 warnings; 13 unit + 62 e2e tests passing
