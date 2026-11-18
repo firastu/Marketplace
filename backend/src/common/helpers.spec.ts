@@ -1,4 +1,9 @@
-import { escapeLike, generateSlug } from "../modules/listings/listings.service";
+import {
+  escapeLike,
+  generateSlug,
+  searchWords,
+  MAX_SEARCH_WORDS,
+} from "../modules/listings/listings.service";
 import { readFileSync } from "fs";
 import { join } from "path";
 import * as bcrypt from "bcrypt";
@@ -132,5 +137,16 @@ describe("demo seed data", () => {
     for (const hash of hashes) {
       expect(bcrypt.compareSync("password123", hash)).toBe(true);
     }
+  });
+});
+
+describe("searchWords", () => {
+  it("splits on any whitespace and drops empties", () => {
+    expect(searchWords("  كيا   ريو\t2015 ")).toEqual(["كيا", "ريو", "2015"]);
+    expect(searchWords("")).toEqual([]);
+    expect(searchWords(undefined)).toEqual([]);
+  });
+  it("caps the number of words", () => {
+    expect(searchWords("a b c d e f g h i j")).toHaveLength(MAX_SEARCH_WORDS);
   });
 });

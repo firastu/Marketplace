@@ -7,7 +7,7 @@ A production-oriented classifieds marketplace for Syria (similar to eBay Kleinan
 | Layer | Technology |
 |---|---|
 | Backend | NestJS (Node.js + TypeScript) |
-| Frontend | Next.js 15 (React 19, App Router) |
+| Frontend | Next.js 15 (React 19, App Router), Arabic-first (RTL) with English under `/en`, via next-intl |
 | Database | PostgreSQL 16 |
 | Infrastructure | Docker, Docker Compose |
 | API Docs | Swagger (auto-generated) |
@@ -184,6 +184,11 @@ runs all of the above plus the migration scripts and both Docker builds.
 - [x] Rate limiting (per user when logged in, per IP for guests), security headers, CORS allowlist
 - [x] SYP / USD currencies, Arabic-friendly slugs, category filter includes subcategories
 - [x] Tracked migrations, Dockerfiles + compose profile, CI, unit + e2e tests
+
+### Arabic-first web app ✅
+- [x] Arabic is the default language (right-to-left) at the existing URLs; English lives under `/en/...`; language switcher in the header, account menu and the phone "Me" tab; the choice is remembered
+- [x] Every UI string in `frontend/messages/ar.json` / `en.json`; numbers, prices and dates formatted in one place (`frontend/src/i18n/config.ts`)
+- [x] Arabic category names, translated API errors. Details: "Languages (i18n)" in `docs/README.md`
 
 ### Phase 2 (In Progress)
 - [ ] Favorites UI (heart button on listing cards + /favorites page)

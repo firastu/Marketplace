@@ -207,13 +207,34 @@ New visual identity ("limestone, ink and apricot") and a real design system; eve
 - Photo uploads: client-side downscale, per-file progress and retry
 - API additions: `GET /listings?userId=`, `lastMessage` + cover photo in `GET /conversations`
 
-**Not built (roadmap or needs API work):** i18n/Arabic strings, leaving a review, reporting, profile editing (no API), drag-and-drop photo reordering (buttons instead), drafts (listings still go live at step 1), desktop two-pane inbox.
+**Not built (roadmap or needs API work):** leaving a review, reporting, profile editing (no API), drag-and-drop photo reordering (buttons instead), drafts (listings still go live at step 1), desktop two-pane inbox.
+
+---
+
+## Arabic-first web app (i18n)
+
+Arabic is the default language with a right-to-left layout; English is fully supported under `/en/...`. See "Languages (i18n)" in `docs/README.md`.
+
+- next-intl; pages moved to `src/app/[locale]/`; middleware with "as-needed" prefix, choice remembered in the `NEXT_LOCALE` cookie, `Accept-Language` ignored (first visit is Arabic)
+- All UI strings in `frontend/messages/{ar,en}.json` (type-checked keys, Arabic plural forms); no hard-coded text left in components
+- One place for formatting: `useFormat()` + `src/i18n/config.ts` (Latin digits in Arabic via `ARABIC_DIGITS`, "ل.س" / "SYP" / "$", "مجانًا" / "Free", `ar-SY` dates)
+- `category.nameAr` with fallback to `name`; known cities shown in the reader's language and stored under one spelling
+- API errors translated by known message / HTTP status (`useErrorText()`), generic fallback
+- Language switcher in the header, the account menu and the phone "Me" tab; stays on the same page and keeps the query string
+- First-load JS: home 137 kB → 145 kB, other pages +8-9 kB
+
+**Needs backend work:** stable error codes (and field names for validation errors) instead of English messages; a canonical city (key or governorate) on listings so the city filter does not depend on spelling; `descriptionAr` for categories (descriptions are hidden in Arabic); server-rendered listing/seller pages for per-listing titles and link previews; transliterated search ("ايفون" does not find "iPhone").
+
+---
+
+### Wholesale (B2B) — planned
+Spec: `.specify/specs/b2b-wholesale.md` (business accounts and verification, supplier storefronts, wholesale products with pack size / MOQ / price tiers, order requests without online payment, re-order, RFQs). Phases B1 catalogue → B2 ordering → B3 growth, after Arabic i18n lands so it ships bilingual.
 
 ---
 
 ## Lint & Typecheck Status
 
 - **Backend**: ✅ 0 errors, 0 warnings; 13 unit + 62 e2e tests passing
-- **Frontend**: ✅ 0 errors
+- **Frontend**: ✅ 0 errors (lint, typecheck with typed translation keys, `next build`)
 
 Run with: `cd backend && npm run lint && npm run typecheck && npm test && npm run test:e2e` / `cd frontend && npm run lint && npm run typecheck`

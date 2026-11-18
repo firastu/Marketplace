@@ -31,6 +31,15 @@ export function escapeLike(term: string): string {
   return term.replace(/[\\%_]/g, (c) => `\\${c}`);
 }
 
+/** Most words a search may contain; more are ignored. */
+export const MAX_SEARCH_WORDS = 8;
+
+/** Split a search box value into words (empty input → no words). */
+export function searchWords(q?: string): string[] {
+  if (!q) return [];
+  return q.trim().split(/\s+/).filter(Boolean).slice(0, MAX_SEARCH_WORDS);
+}
+
 /**
  * URL slug that keeps Arabic (and any other) letters. The old a-z-only
  * version turned every Arabic title into an empty slug.
@@ -101,12 +110,15 @@ export class ListingsService {
     qb: SelectQueryBuilder<Listing>,
     filters: SearchListingsDto,
   ): void {
-    if (filters.q) {
+    // Every word must appear somewhere in the title or description, in any
+    // order. Both sides go through normalize_search_text() (migration 010),
+    // so Arabic spelling variants, diacritics and ٤٣/43 digits match.
+    searchWords(filters.q).forEach((word, i) => {
       qb.andWhere(
-        "(listing.title ILIKE :term OR listing.description ILIKE :term)",
-        { term: `%${escapeLike(filters.q)}%` },
+        `listing.search_text LIKE '%' || normalize_search_text(:w${i}) || '%'`,
+        { [`w${i}`]: escapeLike(word) },
       );
-    }
+    });
     if (filters.categoryId) {
       // Choosing a top-level category (e.g. Electronics) must also return
       // listings filed under its subcategories (e.g. Smartphones).
@@ -139,9 +151,10 @@ export class ListingsService {
       });
     }
     if (filters.locationCity) {
-      qb.andWhere("listing.locationCity ILIKE :city", {
-        city: `%${escapeLike(filters.locationCity)}%`,
-      });
+      qb.andWhere(
+        `normalize_search_text(listing.locationCity) LIKE '%' || normalize_search_text(:city) || '%'`,
+        { city: escapeLike(filters.locationCity.trim()) },
+      );
     }
   }
 

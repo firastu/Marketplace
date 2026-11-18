@@ -10,6 +10,7 @@ import {
   useState,
 } from 'react';
 import { CircleAlert, CircleCheck, Info } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { Dialog } from './Dialog';
 import { Button } from './Button';
 
@@ -43,6 +44,7 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
   const [pending, setPending] = useState<ConfirmOptions | null>(null);
   const resolver = useRef<((ok: boolean) => void) | null>(null);
   const nextId = useRef(1);
+  const t = useTranslations('common');
 
   const toast = useCallback((message: string, tone: ToastTone = 'info') => {
     const id = nextId.current++;
@@ -79,9 +81,9 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
         title={pending?.title ?? ''}
         footer={
           <>
-            <Button onClick={() => settle(false)}>{pending?.cancelLabel ?? 'Cancel'}</Button>
+            <Button onClick={() => settle(false)}>{pending?.cancelLabel ?? t('cancel')}</Button>
             <Button variant={pending?.danger ? 'danger' : 'primary'} onClick={() => settle(true)}>
-              {pending?.confirmLabel ?? 'Confirm'}
+              {pending?.confirmLabel ?? t('confirm')}
             </Button>
           </>
         }
@@ -116,9 +118,4 @@ export function useToast() {
 
 export function useConfirm() {
   return useFeedback().confirm;
-}
-
-/** Message of an unknown thrown value, for toasts and inline errors. */
-export function errorText(err: unknown, fallback: string): string {
-  return err instanceof Error && err.message ? err.message : fallback;
 }

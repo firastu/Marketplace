@@ -1,50 +1,61 @@
-export const CURRENCIES = [
-  { value: 'SYP', label: 'Syrian pound (SYP)' },
-  { value: 'USD', label: 'US dollar (USD)' },
-] as const;
+import { INTL_LOCALE, Locale } from '@/i18n/config';
 
-export type Currency = (typeof CURRENCIES)[number]['value'];
+/**
+ * Pure, locale-aware formatting. Numbers, prices and dates all go through
+ * here, so how they look is decided by INTL_LOCALE in src/i18n/config.ts
+ * (including the Arabic digits switch). Components use these through the
+ * useFormat() hook, which also adds the translated labels.
+ */
 
-export const CONDITIONS = [
-  { value: 'new', label: 'New' },
-  { value: 'like_new', label: 'Like new' },
-  { value: 'used', label: 'Used' },
-  { value: 'fair', label: 'Fair' },
-  { value: 'poor', label: 'For parts / poor' },
-] as const;
+export const CURRENCIES = ['SYP', 'USD'] as const;
+export type Currency = (typeof CURRENCIES)[number];
 
-export const SORT_OPTIONS = [
-  { value: 'newest', label: 'Newest first' },
-  { value: 'price_asc', label: 'Price: low to high' },
-  { value: 'price_desc', label: 'Price: high to low' },
-] as const;
+export const CONDITIONS = ['new', 'like_new', 'used', 'fair', 'poor'] as const;
+export type Condition = (typeof CONDITIONS)[number];
+
+export const STATUSES = ['draft', 'active', 'reserved', 'sold', 'expired', 'removed'] as const;
+export type Status = (typeof STATUSES)[number];
+
+export const SORT_OPTIONS = ['newest', 'price_asc', 'price_desc'] as const;
 
 /** Syrian governorate capitals, offered as suggestions for the city field. */
-export const CITIES = [
-  'Damascus',
-  'Aleppo',
-  'Homs',
-  'Hama',
-  'Latakia',
-  'Tartus',
-  'Idlib',
-  'Daraa',
-  'As-Suwayda',
-  'Deir ez-Zor',
-  'Raqqa',
-  'Al-Hasakah',
-  'Qamishli',
-  'Quneitra',
+export const CITIES: readonly Record<Locale, string>[] = [
+  { en: 'Damascus', ar: 'دمشق' },
+  { en: 'Aleppo', ar: 'حلب' },
+  { en: 'Homs', ar: 'حمص' },
+  { en: 'Hama', ar: 'حماة' },
+  { en: 'Latakia', ar: 'اللاذقية' },
+  { en: 'Tartus', ar: 'طرطوس' },
+  { en: 'Idlib', ar: 'إدلب' },
+  { en: 'Daraa', ar: 'درعا' },
+  { en: 'As-Suwayda', ar: 'السويداء' },
+  { en: 'Deir ez-Zor', ar: 'دير الزور' },
+  { en: 'Raqqa', ar: 'الرقة' },
+  { en: 'Al-Hasakah', ar: 'الحسكة' },
+  { en: 'Qamishli', ar: 'القامشلي' },
+  { en: 'Quneitra', ar: 'القنيطرة' },
 ];
 
-const STATUS_LABELS: Record<string, string> = {
-  draft: 'Draft',
-  active: 'Available',
-  reserved: 'Reserved',
-  sold: 'Sold',
-  expired: 'Expired',
-  removed: 'Removed',
-};
+/**
+ * A stored city in the reader's language when it is one of the known
+ * cities ("Damascus" ↔ "دمشق"); anything else is shown as the seller typed it.
+ */
+export function cityLabel(city: string, locale: Locale): string {
+  const wanted = city.trim().toLowerCase();
+  const known = CITIES.find((c) => c.en.toLowerCase() === wanted || c.ar === wanted);
+  return known ? known[locale] : city;
+}
+
+/**
+ * What is stored and sent to the API for a city. Known cities always use
+ * one spelling (the English one), so a listing saved as "دمشق" and a search
+ * for "Damascus" still meet; anything else stays as typed.
+ */
+export function canonicalCity(city: string): string {
+  const wanted = city.trim().toLowerCase();
+  const known = CITIES.find((c) => c.en.toLowerCase() === wanted || c.ar === wanted);
+  return known ? known.en : city.trim();
+}
 
 export type Tone = 'neutral' | 'success' | 'warning' | 'danger' | 'info' | 'accent';
 
@@ -57,51 +68,46 @@ const STATUS_TONES: Record<string, Tone> = {
   removed: 'danger',
 };
 
-/** "like_new" → "Like new". Unknown values are humanised, never shown raw. */
-function humanise(value: string): string {
-  const spaced = value.replace(/[_-]+/g, ' ').trim();
-  return spaced ? spaced[0].toUpperCase() + spaced.slice(1) : '';
-}
-
-export function conditionLabel(condition: string | null | undefined): string {
-  if (!condition) return '';
-  return CONDITIONS.find((c) => c.value === condition)?.label ?? humanise(condition);
-}
-
-export function statusLabel(status: string): string {
-  return STATUS_LABELS[status] ?? humanise(status);
-}
-
 export function statusTone(status: string): Tone {
   return STATUS_TONES[status] ?? 'neutral';
 }
 
-/** Amount and currency as separate parts, so the UI can style them. */
-export function priceParts(
+/** "like_new" → "Like new": for values the app has no label for yet. */
+export function humanise(value: string): string {
+  const spaced = value.replace(/[_-]+/g, ' ').trim();
+  return spaced ? spaced[0].toUpperCase() + spaced.slice(1) : '';
+}
+
+export function formatNumber(
+  value: number,
+  locale: Locale,
+  options?: Intl.NumberFormatOptions,
+): string {
+  return value.toLocaleString(INTL_LOCALE[locale], options);
+}
+
+/**
+ * The amount of a price, formatted. `null` when it is not a number;
+ * `free` for 0 (shown as "Free" / "مجانًا" by the caller).
+ */
+export function priceAmount(
   price: number | string,
   currency: string,
-): { free: boolean; amount: string; unit: string; unitFirst: boolean } {
+  locale: Locale,
+): { free: boolean; amount: string } | null {
   const amount = Number(price);
-  if (!Number.isFinite(amount)) return { free: false, amount: '', unit: '', unitFirst: false };
-  if (amount === 0) return { free: true, amount: 'Free', unit: '', unitFirst: false };
+  if (!Number.isFinite(amount)) return null;
+  if (amount === 0) return { free: true, amount: '' };
   const decimals = currency === 'SYP' || Number.isInteger(amount) ? 0 : 2;
-  const formatted = amount.toLocaleString('en-US', {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
-  });
-  return currency === 'USD'
-    ? { free: false, amount: formatted, unit: '$', unitFirst: true }
-    : { free: false, amount: formatted, unit: currency, unitFirst: false };
+  return {
+    free: false,
+    amount: formatNumber(amount, locale, {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
+    }),
+  };
 }
 
-/** "$650", "1,500,000 SYP", or "Free" for 0. */
-export function formatPrice(price: number | string, currency: string): string {
-  const p = priceParts(price, currency);
-  if (p.free || !p.unit) return p.amount;
-  return p.unitFirst ? `${p.unit}${p.amount}` : `${p.amount} ${p.unit}`;
-}
-
-const rtf = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
 const UNITS: [Intl.RelativeTimeFormatUnit, number][] = [
   ['year', 365 * 24 * 3600],
   ['month', 30 * 24 * 3600],
@@ -111,14 +117,21 @@ const UNITS: [Intl.RelativeTimeFormatUnit, number][] = [
   ['minute', 60],
 ];
 
-/** "3 hours ago", "yesterday", "just now". */
-export function timeAgo(date: string | Date): string {
+const relativeFormats = new Map<Locale, Intl.RelativeTimeFormat>();
+
+/** "3 hours ago" / "قبل 3 ساعات", "yesterday" / "أمس"; `null` for "just now". */
+export function timeAgo(date: string | Date, locale: Locale): string | null {
   const seconds = (new Date(date).getTime() - Date.now()) / 1000;
   if (!Number.isFinite(seconds)) return '';
+  let rtf = relativeFormats.get(locale);
+  if (!rtf) {
+    rtf = new Intl.RelativeTimeFormat(INTL_LOCALE[locale], { numeric: 'auto' });
+    relativeFormats.set(locale, rtf);
+  }
   for (const [unit, size] of UNITS) {
     if (Math.abs(seconds) >= size) return rtf.format(Math.round(seconds / size), unit);
   }
-  return 'just now';
+  return null;
 }
 
 function sameDay(a: Date, b: Date): boolean {
@@ -127,18 +140,21 @@ function sameDay(a: Date, b: Date): boolean {
   );
 }
 
-/** Day heading in a chat: "Today", "Yesterday", "Monday", "12 March 2026". */
-export function dayLabel(date: string | Date): string {
+/**
+ * Day heading in a chat: 'today' / 'yesterday' (translated by the caller),
+ * otherwise "Monday" or "12 March 2026" in the reader's language.
+ */
+export function dayLabel(date: string | Date, locale: Locale): 'today' | 'yesterday' | string {
   const d = new Date(date);
   const now = new Date();
-  if (sameDay(d, now)) return 'Today';
+  if (sameDay(d, now)) return 'today';
   const yesterday = new Date(now);
   yesterday.setDate(now.getDate() - 1);
-  if (sameDay(d, yesterday)) return 'Yesterday';
+  if (sameDay(d, yesterday)) return 'yesterday';
   if (now.getTime() - d.getTime() < 6 * 24 * 3600 * 1000) {
-    return d.toLocaleDateString('en', { weekday: 'long' });
+    return d.toLocaleDateString(INTL_LOCALE[locale], { weekday: 'long' });
   }
-  return d.toLocaleDateString('en', {
+  return d.toLocaleDateString(INTL_LOCALE[locale], {
     day: 'numeric',
     month: 'long',
     year: d.getFullYear() === now.getFullYear() ? undefined : 'numeric',
@@ -150,23 +166,29 @@ export function dayKey(date: string | Date): string {
   return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
 }
 
-export function clockTime(date: string | Date): string {
-  return new Date(date).toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' });
+export function clockTime(date: string | Date, locale: Locale): string {
+  return new Date(date).toLocaleTimeString(INTL_LOCALE[locale], {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
 /** Inbox timestamp: time today, otherwise a short date. */
-export function shortWhen(date: string | Date): string {
+export function shortWhen(date: string | Date, locale: Locale): string {
   const d = new Date(date);
-  if (sameDay(d, new Date())) return clockTime(d);
-  return d.toLocaleDateString('en', { day: 'numeric', month: 'short' });
+  if (sameDay(d, new Date())) return clockTime(d, locale);
+  return d.toLocaleDateString(INTL_LOCALE[locale], { day: 'numeric', month: 'short' });
 }
 
-export function memberSince(date: string | Date): string {
-  return new Date(date).toLocaleDateString('en', { month: 'long', year: 'numeric' });
+export function memberSince(date: string | Date, locale: Locale): string {
+  return new Date(date).toLocaleDateString(INTL_LOCALE[locale], { month: 'long', year: 'numeric' });
 }
 
 export function initials(name: string | null | undefined): string {
   const parts = (name ?? '').trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return '?';
+  // Arabic has no capitals and two joined letters read as a word
+  // ("لينا الخطيب" → "لا", i.e. "no"), so an Arabic name gets one letter.
+  if (/^[\u0600-\u06FF]/.test(parts[0])) return parts[0][0];
   return (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase();
 }

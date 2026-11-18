@@ -1,7 +1,8 @@
-import Link from 'next/link';
+import { useTranslations } from 'next-intl';
+import { Link } from '@/i18n/navigation';
+import { useFormat } from '@/i18n/use-format';
 import { ImageOff, MapPin } from 'lucide-react';
 import { getImageSrcSet, getImageUrl, getPrimaryImage, Listing } from '@/services/listings.service';
-import { statusLabel, timeAgo } from '@/utils/format';
 import { Price } from './bits';
 import { FavoriteButton } from './FavoriteButton';
 import styles from './ListingCard.module.css';
@@ -15,6 +16,8 @@ interface Props {
 export function ListingCard({ listing, priority }: Props) {
   const image = getPrimaryImage(listing.images ?? []);
   const unavailable = listing.status !== 'active';
+  const t = useTranslations('bits');
+  const fmt = useFormat();
 
   return (
     <article className={styles.card}>
@@ -34,10 +37,10 @@ export function ListingCard({ listing, priority }: Props) {
         ) : (
           <span className={styles.placeholder}>
             <ImageOff aria-hidden="true" />
-            <span className="visually-hidden">No photo</span>
+            <span className="visually-hidden">{t('noPhoto')}</span>
           </span>
         )}
-        {unavailable && <span className={styles.ribbon}>{statusLabel(listing.status)}</span>}
+        {unavailable && <span className={styles.ribbon}>{fmt.status(listing.status)}</span>}
       </div>
 
       <div className={styles.body}>
@@ -52,11 +55,11 @@ export function ListingCard({ listing, priority }: Props) {
             <span className={styles.place}>
               <MapPin aria-hidden="true" />
               <span className="clamp-1" dir="auto">
-                {listing.locationCity}
+                {fmt.city(listing.locationCity)}
               </span>
             </span>
           )}
-          <time dateTime={listing.createdAt}>{timeAgo(listing.createdAt)}</time>
+          <time dateTime={listing.createdAt}>{fmt.timeAgo(listing.createdAt)}</time>
         </p>
       </div>
 
@@ -85,8 +88,9 @@ export function ListingGrid({ children }: { children: React.ReactNode }) {
 }
 
 export function ListingGridSkeleton({ count = 8 }: { count?: number }) {
+  const t = useTranslations('bits');
   return (
-    <div className={styles.grid} aria-busy="true" aria-label="Loading listings">
+    <div className={styles.grid} aria-busy="true" aria-label={t('loadingListings')}>
       {Array.from({ length: count }, (_, i) => (
         <ListingCardSkeleton key={i} />
       ))}

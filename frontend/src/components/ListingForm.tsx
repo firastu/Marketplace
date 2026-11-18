@@ -2,11 +2,13 @@
 
 import { FormEvent, useEffect, useState } from 'react';
 import { CircleAlert } from 'lucide-react';
+import { useTranslations } from 'next-intl';
+import { useErrorText } from '@/i18n/errors';
+import { useFormat } from '@/i18n/use-format';
 import { Category, getCategories } from '@/services/categories.service';
 import { CreateListingData, Listing } from '@/services/listings.service';
-import { CITIES, CONDITIONS, CURRENCIES, Currency } from '@/utils/format';
+import { canonicalCity, CONDITIONS, CURRENCIES, Currency } from '@/utils/format';
 import { Button } from './ui/Button';
-import { errorText } from './ui/Feedback';
 import { Field, Input, Select, Textarea } from './ui/Field';
 
 interface Props {
@@ -18,6 +20,9 @@ interface Props {
 }
 
 export function ListingForm({ initial, submitLabel, onSubmit }: Props) {
+  const t = useTranslations('form');
+  const fmt = useFormat();
+  const errorText = useErrorText();
   const [categories, setCategories] = useState<Category[]>([]);
   const [form, setForm] = useState({
     title: initial?.title ?? '',
@@ -26,16 +31,18 @@ export function ListingForm({ initial, submitLabel, onSubmit }: Props) {
     price: initial ? String(Number(initial.price)) : '',
     currency: (initial?.currency ?? 'SYP') as Currency,
     condition: initial?.condition ?? 'used',
-    locationCity: initial?.locationCity ?? '',
+    // A known city is shown in the seller's language ("Damascus" ↔ "دمشق").
+    locationCity: initial?.locationCity ? fmt.city(initial.locationCity) : '',
     isNegotiable: initial?.isNegotiable ?? true,
   });
   const [error, setError] = useState('');
+  const [categoriesFailed, setCategoriesFailed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     getCategories()
       .then(setCategories)
-      .catch(() => setError('Could not load the categories. Check your connection.'));
+      .catch(() => setCategoriesFailed(true));
   }, []);
 
   const set =
@@ -56,11 +63,11 @@ export function ListingForm({ initial, submitLabel, onSubmit }: Props) {
         currency: form.currency,
         condition: form.condition,
         // An empty string clears the city when editing.
-        locationCity: form.locationCity.trim() || (initial ? '' : undefined),
+        locationCity: canonicalCity(form.locationCity) || (initial ? '' : undefined),
         isNegotiable: form.isNegotiable,
       });
     } catch (err) {
-      setError(errorText(err, 'Could not save the listing'));
+      setError(errorText(err, t('saveFailed')));
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } finally {
       setSubmitting(false);
@@ -69,17 +76,17 @@ export function ListingForm({ initial, submitLabel, onSubmit }: Props) {
 
   return (
     <form onSubmit={handleSubmit} className="form">
-      {error && (
+      {(error || categoriesFailed) && (
         <div className="notice notice--danger" role="alert">
           <CircleAlert aria-hidden="true" />
-          <span className="notice__body">{error}</span>
+          <span className="notice__body">{error || t('categoriesFailed')}</span>
         </div>
       )}
 
       <Field
-        label="Title"
+        label={t('title')}
         htmlFor="title"
-        hint="What is it? Brand, model, size. Arabic or English."
+        hint={t('titleHint')}
       >
         <Input
           id="title"
@@ -92,18 +99,20 @@ export function ListingForm({ initial, submitLabel, onSubmit }: Props) {
         />
       </Field>
 
-      <Field label="Category" htmlFor="categoryId">
+      <Field label={t('category')} htmlFor="categoryId">
         <Select id="categoryId" value={form.categoryId} onChange={set('categoryId')} required>
-          <option value="">Choose a category</option>
+          <option value="">{t('chooseCategory')}</option>
           {categories.map((root) => (
-            <optgroup key={root.id} label={root.name}>
+            <optgroup key={root.id} label={fmt.category(root)}>
               {(root.children ?? []).map((child) => (
                 <option key={child.id} value={child.id}>
-                  {child.name}
+                  {fmt.category(child)}
                 </option>
               ))}
               <option value={root.id}>
-                {root.children?.length ? `Other ${root.name}` : root.name}
+                {root.children?.length
+                  ? t('otherIn', { name: fmt.category(root) })
+                  : fmt.category(root)}
               </option>
             </optgroup>
           ))}
@@ -111,7 +120,7 @@ export function ListingForm({ initial, submitLabel, onSubmit }: Props) {
       </Field>
 
       <div className="form-grid">
-        <Field label="Price" htmlFor="price" hint="Enter 0 to give it away for free">
+        <Field label={t('price')} htmlFor="price" hint={t('priceHint')}>
           <Input
             id="price"
             type="number"
@@ -124,11 +133,11 @@ export function ListingForm({ initial, submitLabel, onSubmit }: Props) {
             required
           />
         </Field>
-        <Field label="Currency" htmlFor="currency">
+        <Field label={t('currency')} htmlFor="currency">
           <Select id="currency" value={form.currency} onChange={set('currency')}>
             {CURRENCIES.map((c) => (
-              <option key={c.value} value={c.value}>
-                {c.label}
+              <option key={c} value={c}>
+                {fmt.currencyName(c)}
               </option>
             ))}
           </Select>
@@ -142,20 +151,20 @@ export function ListingForm({ initial, submitLabel, onSubmit }: Props) {
           checked={form.isNegotiable}
           onChange={(e) => setForm((prev) => ({ ...prev, isNegotiable: e.target.checked }))}
         />
-        <span>Price is negotiable</span>
+        <span>{t('negotiable')}</span>
       </label>
 
       <div className="form-grid">
-        <Field label="Condition" htmlFor="condition">
+        <Field label={t('condition')} htmlFor="condition">
           <Select id="condition" value={form.condition} onChange={set('condition')}>
             {CONDITIONS.map((c) => (
-              <option key={c.value} value={c.value}>
-                {c.label}
+              <option key={c} value={c}>
+                {fmt.condition(c)}
               </option>
             ))}
           </Select>
         </Field>
-        <Field label="City" htmlFor="locationCity">
+        <Field label={t('city')} htmlFor="locationCity">
           <Input
             id="locationCity"
             list="listing-cities"
@@ -166,7 +175,7 @@ export function ListingForm({ initial, submitLabel, onSubmit }: Props) {
             dir="auto"
           />
           <datalist id="listing-cities">
-            {CITIES.map((city) => (
+            {fmt.cities.map((city) => (
               <option key={city} value={city} />
             ))}
           </datalist>
@@ -174,9 +183,9 @@ export function ListingForm({ initial, submitLabel, onSubmit }: Props) {
       </div>
 
       <Field
-        label="Description"
+        label={t('description')}
         htmlFor="description"
-        hint="Age, defects, what is included, where to pick it up."
+        hint={t('descriptionHint')}
       >
         <Textarea
           id="description"

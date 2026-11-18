@@ -2,6 +2,7 @@
 
 import { ReactNode, useEffect, useId, useRef } from 'react';
 import { X } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 
 interface DialogProps {
   open: boolean;
@@ -29,6 +30,7 @@ export function Dialog({
 }: DialogProps) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
+  const t = useTranslations('common');
 
   useEffect(() => {
     const el = ref.current;
@@ -63,7 +65,7 @@ export function Dialog({
             </h2>
             <button type="button" className="btn btn--ghost btn--icon" onClick={onClose}>
               <X aria-hidden="true" />
-              <span className="visually-hidden">Close</span>
+              <span className="visually-hidden">{t('close')}</span>
             </button>
           </div>
           <div className="dialog__body">{children}</div>

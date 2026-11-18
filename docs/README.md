@@ -153,7 +153,7 @@ marketplace-app/
 │   └── package.json
 ├── frontend/
 │   ├── src/
-│   │   ├── app/                    # Next.js App Router pages
+│   │   ├── app/[locale]/           # Next.js App Router pages (ar at /, en at /en)
 │   │   │   ├── page.tsx            # Home — listing grid
 │   │   │   ├── login/              # Login form
 │   │   │   ├── register/           # Registration form
@@ -215,6 +215,8 @@ All endpoints are prefixed with `/api`. Protected endpoints require `Authorizati
 
 Only active categories and subcategories are returned, ordered by `sortOrder`.
 
+Categories carry `name` (English) and `nameAr` (Arabic, may be null — fall back to `name`).
+
 ### Listings Module
 
 | Method | Endpoint               | Auth | Description                          |
@@ -230,6 +232,7 @@ Only active categories and subcategories are returned, ordered by `sortOrder`.
 **Create** body: `{ title, description, price, categoryId, condition?, currency?, locationCity?, locationZip?, isNegotiable?, isShippingAvailable? }`
 
 - `currency`: `SYP` (default) or `USD`. `price` 0 means free.
+- Search (`q`) is Arabic-aware: every word must appear in the title or description (any order), and spelling variants match — أ/إ/آ/ا, ة/ه, ى/ي, ؤ/و, ئ/ي, diacritics and tatweel are ignored, ٠-٩ equals 0-9, Latin is case-insensitive. Implemented by `normalize_search_text()` and the indexed `listings.search_text` column (migration 010, needs the `pg_trgm` extension). `locationCity` is normalised the same way.
 - `GET /listings` filters: `q`, `categoryId` (includes subcategories), `userId` (one seller's listings), `currency`, `minPrice`, `maxPrice`, `condition`, `locationCity`, `sortBy`.
 - Seller objects (`listing.user`, and users anywhere else in responses) only contain public fields: `id, username, displayName, avatarUrl, bio, isVerified, createdAt`. Email and phone are only returned to the account owner (`/auth/me`, login, register).
 
@@ -403,6 +406,8 @@ Migrations are plain SQL files in `database/migrations/`, numbered 001–009. `d
 
 ## Frontend Pages
 
+Every route exists in Arabic (as listed) and in English under `/en` (e.g. `/en/listings/my`); see "Languages (i18n)" below.
+
 | Route                  | Description                                                              |
 | ---------------------- | ------------------------------------------------------------------------ |
 | `/`                    | Browse: search, category rail, filters (sidebar on desktop, bottom sheet on phones), active-filter chips, listing grid, pagination |
@@ -428,8 +433,23 @@ The product name is one constant, `frontend/src/config/site.ts` (`SITE_NAME`).
 - **Page styles** — CSS Modules next to each page/component. No inline styles.
 - **Type** — Readex Pro (variable, SIL OFL), self-hosted in `src/fonts/`; one design for Latin and Arabic. The Arabic file is only downloaded when a page contains Arabic text.
 - **Icons** — `lucide-react`, imported per icon. `components/CategoryIcon.tsx` maps `categories.icon` names to icons.
-- **RTL-ready** — CSS logical properties only (`inline`/`block`, `start`/`end`); directional icons carry `.icon-flip`; user text uses `dir="auto"`. Setting `<html lang="ar" dir="rtl">` in `app/layout.tsx` mirrors the whole app.
+- **RTL** — CSS logical properties only (`inline`/`block`, `start`/`end`); directional icons carry `.icon-flip`; user text uses `dir="auto"`. `<html lang dir>` is set per language in `app/[locale]/layout.tsx`.
 - **Accessibility** — AA contrast on all token pairs, visible focus, labelled controls, 44px touch targets on coarse pointers, skip link, reduced motion respected.
+
+### Languages (i18n)
+
+Arabic is the default language; English is fully supported. Built on [next-intl](https://next-intl.dev).
+
+- **URLs** — Arabic at the bare paths (`/`, `/listings/…`), English under `/en/…` (`localePrefix: 'as-needed'`). All pages live in `src/app/[locale]/`; `src/middleware.ts` picks the language from the URL, then from the visitor's earlier choice (`NEXT_LOCALE` cookie, one year). The browser's `Accept-Language` is deliberately ignored, so a first visit is always Arabic. Responses carry `hreflang` alternate links.
+- **Strings** — `frontend/messages/ar.json` and `en.json`, same keys. Only the active language is sent to the browser. Keys are type-checked (`src/i18n/types.d.ts`): a missing key fails `npm run typecheck`. Use `useTranslations('namespace')`; no user-facing text in components.
+- **Links** — import `Link`, `useRouter`, `usePathname` from `@/i18n/navigation`, never from `next/link` / `next/navigation`. Paths are written without a language prefix; `usePathname()` returns them without it too.
+- **Numbers, prices, dates** — one hook, `useFormat()` (`src/i18n/use-format.ts`), on top of the pure functions in `src/utils/format.ts`. The Arabic UI uses Latin digits (0-9); the switch is `ARABIC_DIGITS` in `src/i18n/config.ts` (`'latn'` | `'arab'`). Dates use `ar-SY` (كانون الثاني, شباط …). SYP is "ل.س" in Arabic and "SYP" in English, USD is "$", 0 is "مجانًا" / "Free". Numbers placed inside a sentence are passed in already formatted (`{n}`), with `{count}` only choosing the plural form (Arabic has six).
+- **Mixed direction** — amounts, e-mail addresses and counters are wrapped in `<bdi dir="ltr">`; user text keeps `dir="auto"`.
+- **Data** — categories show `nameAr` in Arabic and fall back to `name` (`useFormat().category`). The 14 known cities are shown in the reader's language and stored / filtered under one spelling (`canonicalCity`, English), so "دمشق" and "Damascus" are the same filter.
+- **API errors** — the API answers in English without error codes. `useErrorText()` (`src/i18n/errors.ts`) maps known messages and HTTP statuses (0 network, 400, 401, 403, 404, 409, 413, 429, 5xx) to translated text and falls back to a translated sentence from the caller. Never show `ApiError.message`.
+- **Page titles** — `generateMetadata` in the root layout and in a small `layout.tsx` per route (`titleMetadata('key')` from `src/i18n/metadata.ts`).
+- **Adding a language** — add it to `LOCALES`, `INTL_LOCALE`, `DIRECTION` and the name maps in `src/i18n/config.ts`, add `messages/<code>.json` and the city names in `src/utils/format.ts`.
+- **Bundle** — messages are precompiled at build time (`experimental.messages.precompile` in `next.config.js`), which keeps the ICU parser out of the browser: about +8 kB first-load JS per page instead of +17 kB. Removing that option is safe and only costs the difference.
 
 ### Key Frontend Features
 

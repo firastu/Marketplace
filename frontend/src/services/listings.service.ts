@@ -40,7 +40,7 @@ export interface Listing {
   categoryId: string;
   userId: string;
   images: ListingImage[];
-  category?: { id: string; name: string; slug: string; icon?: string | null };
+  category?: { id: string; name: string; nameAr?: string | null; slug: string; icon?: string | null };
   /** Public seller profile only; contact details are never sent. */
   user?: PublicUser;
 }
