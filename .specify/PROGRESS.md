@@ -196,9 +196,24 @@ Found by reading the code and exercising the running app (API probes + browser f
 
 ---
 
+## Frontend redesign
+
+New visual identity ("limestone, ink and apricot") and a real design system; every page rebuilt mobile-first. See "Design system" in `docs/README.md`.
+
+- Tokens (light + dark), UI kit, CSS Modules; all inline styles and JS hover handlers removed; `alert()`/`confirm()` replaced by toasts and dialogs; skeleton loading states; human labels for conditions and statuses
+- Phone bottom tab bar, filter bottom sheet with chips, swipeable gallery with full-screen viewer, sticky contact bar, message sheet with suggested openers
+- New pages for API features that had no UI: favorites, edit listing (status, photo reorder / cover / delete), public seller page with reviews; login returns to `?next=`
+- RTL-ready (logical properties, flipping icons, `dir="auto"` on user text), Readex Pro self-hosted for Latin + Arabic
+- Photo uploads: client-side downscale, per-file progress and retry
+- API additions: `GET /listings?userId=`, `lastMessage` + cover photo in `GET /conversations`
+
+**Not built (roadmap or needs API work):** i18n/Arabic strings, leaving a review, reporting, profile editing (no API), drag-and-drop photo reordering (buttons instead), drafts (listings still go live at step 1), desktop two-pane inbox.
+
+---
+
 ## Lint & Typecheck Status
 
-- **Backend**: ✅ 0 errors, 0 warnings; 13 unit + 60 e2e tests passing
+- **Backend**: ✅ 0 errors, 0 warnings; 13 unit + 62 e2e tests passing
 - **Frontend**: ✅ 0 errors
 
 Run with: `cd backend && npm run lint && npm run typecheck && npm test && npm run test:e2e` / `cd frontend && npm run lint && npm run typecheck`

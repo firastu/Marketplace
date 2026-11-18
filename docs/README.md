@@ -403,25 +403,43 @@ Migrations are plain SQL files in `database/migrations/`, numbered 001–009. `d
 
 ## Frontend Pages
 
-| Route                  | Component          | Description                                   |
-| ---------------------- | ------------------ | --------------------------------------------- |
-| `/`                    | Home               | Paginated listing grid with images and prices |
-| `/login`               | Login              | Email + password login form                   |
-| `/register`            | Register           | Username, email, password, display name form  |
-| `/listings/:id`        | Listing Detail     | Full listing info + "Contact Seller" button   |
-| `/listings/create`     | Create Listing     | Form to post a new listing                    |
-| `/listings/my`         | My Listings        | Manage own listings, delete action            |
-| `/messages`            | Inbox              | All conversations with unread indicators      |
-| `/messages/:id`        | Chat Thread        | Real-time chat with speech bubble UI          |
+| Route                  | Description                                                              |
+| ---------------------- | ------------------------------------------------------------------------ |
+| `/`                    | Browse: search, category rail, filters (sidebar on desktop, bottom sheet on phones), active-filter chips, listing grid, pagination |
+| `/categories`          | Category cards with icons and subcategory chips                          |
+| `/listings/:id`        | Swipeable gallery + full-screen viewer, price/facts, seller card, message sheet, favorite, share; owner actions |
+| `/listings/create`     | Three steps: details → photos (per-file progress, retry) → done          |
+| `/listings/:id/edit`   | Availability (available / reserved / sold), photo management (reorder, cover, delete), details, delete |
+| `/listings/my`         | Account card, own listings by status, per-listing actions                |
+| `/favorites`           | Saved listings                                                           |
+| `/users/:id`           | Public seller page: profile, rating, listings, reviews                   |
+| `/messages`            | Inbox with listing photo, last message and unread count                  |
+| `/messages/:id`        | Chat: listing and counterpart context, day separators, live updates      |
+| `/login`, `/register`  | Auth forms; `?next=/path` returns the user to where they were going      |
+| (any other)            | Designed 404 and error states                                            |
+
+### Design system
+
+The product name is one constant, `frontend/src/config/site.ts` (`SITE_NAME`).
+
+- **Tokens** — `src/styles/tokens.css`: colour (light and dark via `prefers-color-scheme`), type scale, 4px spacing grid, radii, elevation, motion, layout. Components never use raw values.
+- **Base** — `src/styles/base.css`: reset, focus ring, reduced-motion.
+- **UI kit** — `src/styles/ui.css` + `src/components/ui/`: `Button`/`buttonClass`, `Field`/`Input`/`Select`/`Textarea`, chips, badges, cards, avatar, tabs, skeletons, `EmptyState`, `Dialog` (native `<dialog>`; `variant="sheet"` is a bottom sheet on phones), `Menu`, `Stepper`, and `FeedbackProvider` with `useToast()` / `useConfirm()` (no `alert()` / `confirm()`).
+- **Page styles** — CSS Modules next to each page/component. No inline styles.
+- **Type** — Readex Pro (variable, SIL OFL), self-hosted in `src/fonts/`; one design for Latin and Arabic. The Arabic file is only downloaded when a page contains Arabic text.
+- **Icons** — `lucide-react`, imported per icon. `components/CategoryIcon.tsx` maps `categories.icon` names to icons.
+- **RTL-ready** — CSS logical properties only (`inline`/`block`, `start`/`end`); directional icons carry `.icon-flip`; user text uses `dir="auto"`. Setting `<html lang="ar" dir="rtl">` in `app/layout.tsx` mirrors the whole app.
+- **Accessibility** — AA contrast on all token pairs, visible focus, labelled controls, 44px touch targets on coarse pointers, skip link, reduced motion respected.
 
 ### Key Frontend Features
 
 - **AuthProvider**: Global React context for login state, wraps the entire app.
+- **FavoritesProvider**: the user's favorite IDs, loaded once and shared by every heart button.
 - **Socket.IO hooks**: `useConversationSocket`, `useInboxSocket`, `useUnreadCount` for real-time updates.
 - **API proxy (development)**: with `NEXT_PUBLIC_API_URL=/api`, Next.js rewrites `/api/*` to the backend, enabling LAN access from any device. Not for production, see "Getting Started".
 - **URL-driven browse page**: search, filters, sorting and page live in the query string, so links, Back/Forward and reloads show the same results.
 - **Session handling**: a 401 from the API ends the session; network errors do not.
-- **Unread badge**: Red notification badge in the header showing total unread messages across all conversations.
+- **Photo uploads**: large photos are downscaled in the browser (max 2048px JPEG) before upload, sent one at a time with a progress bar each; a failed file can be retried on its own.
 
 ---
 
