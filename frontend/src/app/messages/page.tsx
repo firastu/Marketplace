@@ -73,6 +73,12 @@ export default function MessagesPage() {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div style={{ fontWeight: 600 }}>
                       {conv.listing?.title || 'Listing'}
+                      {conv.listing?.deletedAt && (
+                        <span style={{ fontWeight: 400, color: 'var(--color-text-light)' }}>
+                          {' '}
+                          (listing deleted)
+                        </span>
+                      )}
                     </div>
                     {hasUnread && (
                       <span

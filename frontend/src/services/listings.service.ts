@@ -1,8 +1,9 @@
 import { apiClient } from './api-client';
+import type { Currency } from '@/utils/format';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001';
 
-export type ImageStatus = 'uploaded' | 'processing' | 'ready' | 'failed';
+export type ImageStatus = 'uploaded' | 'processing' | 'ready' | 'failed' | 'deleted';
 
 export interface ListingImage {
   id: string;
@@ -29,16 +30,18 @@ export interface Listing {
   slug: string;
   description: string;
   price: number;
-  currency: string;
+  currency: Currency;
   condition: string;
   status: string;
-  locationCity: string;
-  locationZip: string;
+  locationCity: string | null;
+  locationZip: string | null;
   isNegotiable: boolean;
+  viewsCount: number;
   createdAt: string;
   images: ListingImage[];
   category: { id: string; name: string; slug: string };
-  user: { id: string; username: string; displayName: string };
+  /** Public seller profile only; contact details are never sent. */
+  user: { id: string; username: string; displayName: string | null };
 }
 
 export interface PaginatedListings {
@@ -55,6 +58,7 @@ export interface ListingSearchParams {
   maxPrice?: number;
   condition?: string;
   locationCity?: string;
+  currency?: Currency;
   sortBy?: 'newest' | 'price_asc' | 'price_desc';
 }
 
@@ -63,7 +67,7 @@ export interface CreateListingData {
   title: string;
   description: string;
   price: number;
-  currency?: string;
+  currency?: Currency;
   condition?: string;
   locationCity?: string;
   locationZip?: string;
@@ -77,12 +81,15 @@ function buildImageUrl(key: string | null, fallbackUrl: string): string {
   return `${BACKEND_URL}${fallbackUrl}`;
 }
 
-export function getImageUrl(image: ListingImage, variant: 'thumb' | 'medium' | 'large' | 'original' = 'medium'): string {
+/**
+ * Public URL of a resized WebP variant. Originals are private on the server
+ * (they can contain the camera's GPS position), so there is no 'original'.
+ */
+export function getImageUrl(image: ListingImage, variant: 'thumb' | 'medium' | 'large' = 'medium'): string {
   const variantMap: Record<string, string | null> = {
     thumb: image.storageKeyThumb,
     medium: image.storageKeyMedium,
     large: image.storageKeyLarge,
-    original: image.storageKeyOriginal,
   };
   return buildImageUrl(variantMap[variant] ?? null, image.url);
 }
@@ -106,7 +113,8 @@ export function getListings(params: ListingSearchParams = {}): Promise<Paginated
 }
 
 export function getListingById(id: string): Promise<Listing> {
-  return apiClient<Listing>(`/listings/${id}`);
+  // Sends the token when logged in so owners can open their own drafts.
+  return apiClient<Listing>(`/listings/${id}`, { auth: true });
 }
 
 export function getMyListings(): Promise<Listing[]> {
@@ -122,7 +130,7 @@ export function deleteListing(id: string): Promise<void> {
 }
 
 export function getListingImages(listingId: string): Promise<ListingImage[]> {
-  return apiClient<ListingImage[]>(`/listings/${listingId}/images`);
+  return apiClient<ListingImage[]>(`/listings/${listingId}/images`, { auth: true });
 }
 
 export function uploadImage(
@@ -153,8 +161,8 @@ export function setCoverImage(listingId: string, imageId: string): Promise<Listi
   );
 }
 
-export function reorderImages(listingId: string, orderedIds: string[]): Promise<void> {
-  return apiClient<void>(`/listings/${listingId}/images/order`, {
+export function reorderImages(listingId: string, orderedIds: string[]): Promise<ListingImage[]> {
+  return apiClient<ListingImage[]>(`/listings/${listingId}/images/order`, {
     method: 'PATCH',
     body: { imageIds: orderedIds },
     auth: true,

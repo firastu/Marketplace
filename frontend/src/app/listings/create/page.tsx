@@ -11,6 +11,7 @@ import {
   ListingImage,
 } from '@/services/listings.service';
 import { getCategories, Category } from '@/services/categories.service';
+import { CURRENCIES, Currency } from '@/utils/format';
 
 const MAX_FILES = 15;
 const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
@@ -32,9 +33,9 @@ export default function CreateListingPage() {
     title: '',
     description: '',
     price: '',
+    currency: 'SYP' as Currency,
     condition: 'used',
     locationCity: '',
-    locationZip: '',
     isNegotiable: false,
   });
   const [error, setError] = useState('');
@@ -341,17 +342,34 @@ export default function CreateListingPage() {
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
           <div className="form-group">
-            <label htmlFor="price">Price (EUR)</label>
+            <label htmlFor="price">Price</label>
             <input
               id="price"
               type="number"
-              step="0.01"
+              step={form.currency === 'SYP' ? '1' : '0.01'}
               min="0"
               value={form.price}
               onChange={update('price')}
+              aria-describedby="price-hint"
               required
             />
+            <small id="price-hint" style={{ color: 'var(--color-text-light)' }}>
+              Enter 0 to give it away for free
+            </small>
           </div>
+          <div className="form-group">
+            <label htmlFor="currency">Currency</label>
+            <select id="currency" value={form.currency} onChange={update('currency')}>
+              {CURRENCIES.map((c) => (
+                <option key={c.value} value={c.value}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
           <div className="form-group">
             <label htmlFor="condition">Condition</label>
             <select
@@ -366,23 +384,13 @@ export default function CreateListingPage() {
               <option value="poor">Poor</option>
             </select>
           </div>
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
           <div className="form-group">
             <label htmlFor="locationCity">City</label>
             <input
               id="locationCity"
               value={form.locationCity}
               onChange={update('locationCity')}
-            />
-          </div>
-          <div className="form-group">
-            <label htmlFor="locationZip">ZIP Code</label>
-            <input
-              id="locationZip"
-              value={form.locationZip}
-              onChange={update('locationZip')}
+              maxLength={100}
             />
           </div>
         </div>

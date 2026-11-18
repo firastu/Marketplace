@@ -66,7 +66,7 @@ export default function Header() {
                   </span>
                 )}
               </Link>
-              <span className="nav-user">{user.displayName}</span>
+              <span className="nav-user">{user.displayName || user.username}</span>
               <button onClick={handleLogout} className="nav-btn">
                 Logout
               </button>

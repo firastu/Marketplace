@@ -7,9 +7,10 @@ export interface Conversation {
   sellerId: string;
   lastMessageAt: string;
   unreadCount?: number;
-  listing?: { id: string; title: string };
-  buyer?: { id: string; username: string; displayName: string };
-  seller?: { id: string; username: string; displayName: string };
+  /** deletedAt is set when the seller deleted the listing; the chat is kept. */
+  listing?: { id: string; title: string; deletedAt?: string | null };
+  buyer?: { id: string; username: string; displayName: string | null };
+  seller?: { id: string; username: string; displayName: string | null };
 }
 
 export interface Message {
@@ -19,7 +20,7 @@ export interface Message {
   body: string;
   isRead: boolean;
   createdAt: string;
-  sender?: { id: string; username: string; displayName: string };
+  sender?: { id: string; username: string; displayName: string | null };
 }
 
 export function getMyConversations(): Promise<Conversation[]> {

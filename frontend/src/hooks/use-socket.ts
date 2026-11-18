@@ -14,13 +14,13 @@ function getSocket(): Socket | null {
 
   if (globalSocket?.connected) return globalSocket;
 
-  // Determine the backend host for the WebSocket connection.
-  // The REST API goes through Next.js rewrites (/api → localhost:3001/api),
-  // but WebSockets must connect directly to the backend.
+  // The REST API goes through Next.js rewrites (/api → backend), but
+  // WebSockets connect directly to the backend. NEXT_PUBLIC_BACKEND_URL
+  // wins (production / Docker); otherwise assume port 3001 on this host,
+  // which also works when testing from a phone on the same LAN.
   const wsUrl =
-    typeof window !== 'undefined' && window.location.hostname !== 'localhost'
-      ? `http://${window.location.hostname}:3001`
-      : 'http://localhost:3001';
+    process.env.NEXT_PUBLIC_BACKEND_URL ||
+    `${window.location.protocol}//${window.location.hostname}:3001`;
 
   globalSocket = io(`${wsUrl}/chat`, {
     auth: { token },

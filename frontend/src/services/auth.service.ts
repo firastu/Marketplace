@@ -1,10 +1,12 @@
 import { apiClient } from './api-client';
 
+/** The logged-in user's own account (from /auth/me, login, register). */
 export interface User {
   id: string;
   username: string;
   email: string;
-  displayName: string;
+  displayName: string | null;
+  phone: string | null;
   role: string;
 }
 

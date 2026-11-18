@@ -11,6 +11,7 @@ import {
   ListingSearchParams,
 } from '@/services';
 import { getCategories, Category } from '@/services/categories.service';
+import { CURRENCIES, Currency, formatPrice } from '@/utils/format';
 
 const CONDITIONS = [
   { value: '', label: 'Any condition' },
@@ -45,6 +46,7 @@ function HomePageInner() {
   const [minPrice, setMinPrice] = useState(searchParams.get('minPrice') || '');
   const [maxPrice, setMaxPrice] = useState(searchParams.get('maxPrice') || '');
   const [condition, setCondition] = useState(searchParams.get('condition') || '');
+  const [currency, setCurrency] = useState(searchParams.get('currency') || '');
   const [sortBy, setSortBy] = useState(searchParams.get('sortBy') || 'newest');
 
   const page = parseInt(searchParams.get('page') || '1', 10);
@@ -64,6 +66,7 @@ function HomePageInner() {
         minPrice: minPrice ? Number(minPrice) : undefined,
         maxPrice: maxPrice ? Number(maxPrice) : undefined,
         condition: condition || undefined,
+        currency: (currency || undefined) as Currency | undefined,
         sortBy: sortBy as ListingSearchParams['sortBy'],
         ...overrides,
       };
@@ -72,7 +75,7 @@ function HomePageInner() {
         .catch(() => setData(null))
         .finally(() => setLoading(false));
     },
-    [page, search, categoryId, minPrice, maxPrice, condition, sortBy],
+    [page, search, categoryId, minPrice, maxPrice, condition, currency, sortBy],
   );
 
   useEffect(() => {
@@ -88,6 +91,7 @@ function HomePageInner() {
         minPrice,
         maxPrice,
         condition,
+        currency,
         sortBy,
         page: String(page),
         ...overrides,
@@ -99,7 +103,7 @@ function HomePageInner() {
       }
       return `/?${params.toString()}`;
     },
-    [search, categoryId, minPrice, maxPrice, condition, sortBy, page],
+    [search, categoryId, minPrice, maxPrice, condition, currency, sortBy, page],
   );
 
   const handleSearch = (e: React.FormEvent) => {
@@ -107,8 +111,11 @@ function HomePageInner() {
     router.push(buildUrl({ page: 1 }));
   };
 
-  const handleFilterChange = () => {
-    router.push(buildUrl({ page: 1 }));
+  // The new value is passed in explicitly: right after a setState call the
+  // state variables still hold the previous value, so building the URL from
+  // state alone left the address bar one change behind.
+  const handleFilterChange = (changed: Record<string, string>) => {
+    router.push(buildUrl({ ...changed, page: 1 }));
   };
 
   const handlePage = (newPage: number) => {
@@ -121,12 +128,13 @@ function HomePageInner() {
     setMinPrice('');
     setMaxPrice('');
     setCondition('');
+    setCurrency('');
     setSortBy('newest');
     router.push('/');
   };
 
   const hasActiveFilters =
-    search || categoryId || minPrice || maxPrice || condition || page > 1;
+    search || categoryId || minPrice || maxPrice || condition || currency || page > 1;
 
   return (
     <div className="page">
@@ -179,7 +187,7 @@ function HomePageInner() {
                 value={categoryId}
                 onChange={(e) => {
                   setCategoryId(e.target.value);
-                  handleFilterChange();
+                  handleFilterChange({ categoryId: e.target.value });
                 }}
                 style={{ width: '100%' }}
               >
@@ -201,11 +209,33 @@ function HomePageInner() {
                 value={condition}
                 onChange={(e) => {
                   setCondition(e.target.value);
-                  handleFilterChange();
+                  handleFilterChange({ condition: e.target.value });
                 }}
                 style={{ width: '100%' }}
               >
                 {CONDITIONS.map((c) => (
+                  <option key={c.value} value={c.value}>
+                    {c.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="form-group" style={{ margin: 0 }}>
+              <label htmlFor="filter-currency" style={{ fontSize: '0.75rem', fontWeight: 600 }}>
+                Currency
+              </label>
+              <select
+                id="filter-currency"
+                value={currency}
+                onChange={(e) => {
+                  setCurrency(e.target.value);
+                  handleFilterChange({ currency: e.target.value });
+                }}
+                style={{ width: '100%' }}
+              >
+                <option value="">Any currency</option>
+                {CURRENCIES.map((c) => (
                   <option key={c.value} value={c.value}>
                     {c.label}
                   </option>
@@ -225,7 +255,7 @@ function HomePageInner() {
                 value={minPrice}
                 onChange={(e) => {
                   setMinPrice(e.target.value);
-                  handleFilterChange();
+                  handleFilterChange({ minPrice: e.target.value });
                 }}
                 placeholder="0"
                 style={{ width: '100%' }}
@@ -244,7 +274,7 @@ function HomePageInner() {
                 value={maxPrice}
                 onChange={(e) => {
                   setMaxPrice(e.target.value);
-                  handleFilterChange();
+                  handleFilterChange({ maxPrice: e.target.value });
                 }}
                 placeholder="Any"
                 style={{ width: '100%' }}
@@ -260,7 +290,7 @@ function HomePageInner() {
                 value={sortBy}
                 onChange={(e) => {
                   setSortBy(e.target.value);
-                  handleFilterChange();
+                  handleFilterChange({ sortBy: e.target.value });
                 }}
                 style={{ width: '100%' }}
               >
@@ -388,7 +418,7 @@ function ListingCard({ listing }: { listing: Listing }) {
         <div className="card-body">
           <div className="card-title">{listing.title}</div>
           <div className="card-price">
-            {listing.currency} {Number(listing.price).toFixed(2)}
+            {formatPrice(listing.price, listing.currency)}
           </div>
           <div className="card-meta">
             {[listing.locationCity, listing.condition].filter(Boolean).join(' · ')}

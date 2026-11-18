@@ -11,6 +11,7 @@ import {
   getPrimaryImage,
 } from '@/services';
 import { startConversation } from '@/services/messages.service';
+import { formatPrice } from '@/utils/format';
 
 export default function ListingDetailPage() {
   const params = useParams();
@@ -105,7 +106,7 @@ export default function ListingDetailPage() {
   if (error) return <div className="page"><div className="form-error">{error}</div></div>;
   if (!listing) return <div className="page"><div className="empty">Listing not found</div></div>;
 
-  const visibleImages = listing.images?.filter((img) => !img.deletedAt) ?? [];
+  const visibleImages = listing.images ?? [];
   const primaryImage = activeImage ?? getPrimaryImage(visibleImages);
   const mainImageUrl = primaryImage ? getImageUrl(primaryImage, 'large') : null;
 
@@ -191,7 +192,7 @@ export default function ListingDetailPage() {
           <div className="listing-sidebar">
             <h2>{listing.title}</h2>
             <div className="price">
-              {listing.currency} {Number(listing.price).toFixed(2)}
+              {formatPrice(listing.price, listing.currency)}
             </div>
             <div className="meta">Condition: {listing.condition}</div>
             <div className="meta">
@@ -300,7 +301,7 @@ export default function ListingDetailPage() {
           >
             <img
               ref={lightboxImgRef}
-              src={getImageUrl(primaryImage, 'original')}
+              src={getImageUrl(primaryImage, 'large')}
               alt={listing.title}
               onMouseDown={lightboxZoom > 1 ? handleLightboxDrag : undefined}
               style={{

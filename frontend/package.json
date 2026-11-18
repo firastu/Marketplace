@@ -6,8 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint src --fix",
-    "typecheck": "./node_modules/.bin/tsc --noEmit"
+    "lint": "eslint src",
+    "typecheck": "./node_modules/.bin/tsc --noEmit",
+    "lint:fix": "eslint src --fix"
   },
   "dependencies": {
     "next": "^15.1.0",

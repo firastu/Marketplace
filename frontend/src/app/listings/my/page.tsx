@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/use-auth';
 import { getMyListings, deleteListing, Listing } from '@/services/listings.service';
+import { formatPrice } from '@/utils/format';
 
 export default function MyListingsPage() {
   const { user, loading: authLoading } = useAuth();
@@ -64,7 +65,7 @@ export default function MyListingsPage() {
                   <div style={{ fontWeight: 600 }}>{listing.title}</div>
                 </Link>
                 <div style={{ fontSize: '0.875rem', color: 'var(--color-text-light)', marginTop: '0.25rem' }}>
-                  {listing.currency} {Number(listing.price).toFixed(2)} ·{' '}
+                  {formatPrice(listing.price, listing.currency)} ·{' '}
                   <span className={`badge badge-${listing.status}`}>{listing.status}</span>
                 </div>
               </div>
