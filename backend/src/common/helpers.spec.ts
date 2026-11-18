@@ -1,5 +1,8 @@
 import { escapeLike, generateSlug } from "../modules/listings/listings.service";
-import { parseCorsOrigins } from "../app.setup";
+import { readFileSync } from "fs";
+import { join } from "path";
+import * as bcrypt from "bcrypt";
+import { isPrivateUploadPath, parseCorsOrigins } from "../app.setup";
 import { User } from "../modules/users/user.entity";
 import { toSelfUser } from "../modules/users/user-views";
 
@@ -79,5 +82,55 @@ describe("User serialisation", () => {
     expect(self.email).toBe("sami@example.com");
     expect(self.phone).toBe("+963900000000");
     expect(JSON.stringify(self)).not.toContain("secret");
+  });
+});
+
+describe("isPrivateUploadPath", () => {
+  const id = "6e9d7bfa-ac89-4055-ac52-cab37b42fffe";
+
+  it("lets the public variants through", () => {
+    for (const variant of ["thumb", "medium", "large"]) {
+      expect(isPrivateUploadPath(`/listings/${id}/${variant}/a.webp`)).toBe(
+        false,
+      );
+    }
+    // a file merely named "...original..." is not the private folder
+    expect(isPrivateUploadPath("/listings/samples/sample_1_original.jpg")).toBe(
+      false,
+    );
+  });
+
+  it("blocks the originals folder however the URL spells it", () => {
+    for (const path of [
+      `/listings/${id}/original/a.jpg`,
+      `/listings/${id}/%6Friginal/a.jpg`,
+      `/listings/${id}/ORIGINAL/a.jpg`,
+      `/listings/${id}//original/a.jpg`,
+      `/listings/${id}/thumb/../original/a.jpg`,
+      `/listings/${id}%2Foriginal%2Fa.jpg`,
+      `/listings/${id}\\original\\a.jpg`,
+      `/listings/${id}/original`,
+    ]) {
+      expect([path, isPrivateUploadPath(path)]).toEqual([path, true]);
+    }
+  });
+
+  it("blocks paths it cannot decode", () => {
+    expect(isPrivateUploadPath("/listings/%E0%A4%A/a.webp")).toBe(true);
+    expect(isPrivateUploadPath("/listings/a%00.webp")).toBe(true);
+  });
+});
+
+describe("demo seed data", () => {
+  it("demo users really have the documented password", () => {
+    const seed = readFileSync(
+      join(__dirname, "../../../database/seeds/002_seed_demo_data.sql"),
+      "utf8",
+    );
+    const hashes = seed.match(/\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}/g) ?? [];
+    expect(hashes).toHaveLength(3);
+    for (const hash of hashes) {
+      expect(bcrypt.compareSync("password123", hash)).toBe(true);
+    }
   });
 });

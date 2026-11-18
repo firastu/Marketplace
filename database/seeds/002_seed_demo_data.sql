@@ -3,9 +3,9 @@
 
 -- Demo users (passwords are bcrypt hash of 'password123')
 INSERT INTO users (email, password_hash, username, display_name, bio, is_verified) VALUES
-('alice@example.com', '$2b$10$xPPOz6GhBQYmMljBxIjpveVRAuliHMCGLnhSS1GSxMTvd9bnr19sy', 'alice', 'Alice Johnson', 'I love selling vintage items!', TRUE),
-('bob@example.com', '$2b$10$xPPOz6GhBQYmMljBxIjpveVRAuliHMCGLnhSS1GSxMTvd9bnr19sy', 'bob', 'Bob Smith', 'Tech enthusiast and collector.', TRUE),
-('charlie@example.com', '$2b$10$xPPOz6GhBQYmMljBxIjpveVRAuliHMCGLnhSS1GSxMTvd9bnr19sy', 'charlie', 'Charlie Brown', 'Looking for great deals.', FALSE);
+('alice@example.com', '$2b$10$wTUO52hQvnYlQjD5wqBHSeSAhfuVD3vR5fR15PottWxngQMgD4lLO', 'alice', 'Alice Johnson', 'I love selling vintage items!', TRUE),
+('bob@example.com', '$2b$10$wTUO52hQvnYlQjD5wqBHSeSAhfuVD3vR5fR15PottWxngQMgD4lLO', 'bob', 'Bob Smith', 'Tech enthusiast and collector.', TRUE),
+('charlie@example.com', '$2b$10$wTUO52hQvnYlQjD5wqBHSeSAhfuVD3vR5fR15PottWxngQMgD4lLO', 'charlie', 'Charlie Brown', 'Looking for great deals.', FALSE);
 
 -- Demo listings
 INSERT INTO listings (user_id, category_id, title, slug, description, price, currency, condition, status, location_city, is_negotiable)
