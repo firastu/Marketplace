@@ -115,8 +115,28 @@
   overflow-wrap: anywhere;
 }
 
+/* Language switch: short name on phones ("EN"), full name from tablet up. */
+.lang {
+  padding-inline: var(--s-2);
+}
+
+.lang [data-label='full'] {
+  display: none;
+}
+
 @media (max-width: 899px) {
   .header[data-compact] {
+    display: none;
+  }
+
+  .inner {
+    gap: var(--s-2);
+  }
+}
+
+/* Very narrow phones: the icon alone (it keeps its accessible name). */
+@media (max-width: 379px) {
+  .lang [data-label='short'] {
     display: none;
   }
 }
@@ -192,6 +212,18 @@
 
   .mobileOnly {
     display: none;
+  }
+
+  .lang {
+    padding-inline: var(--s-4);
+  }
+
+  .lang [data-label='short'] {
+    display: none;
+  }
+
+  .lang [data-label='full'] {
+    display: inline;
   }
 
   .bottomNav {

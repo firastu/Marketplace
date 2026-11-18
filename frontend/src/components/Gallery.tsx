@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, ImageOff, X } from 'lucide-react';
+import { useTranslations } from 'next-intl';
+import { useFormat } from '@/i18n/use-format';
 import { getImageUrl, ListingImage } from '@/services/listings.service';
 import styles from './Gallery.module.css';
 
@@ -38,6 +40,10 @@ export function Gallery({ images, title }: Props) {
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
   const count = images.length;
+  const t = useTranslations('gallery');
+  const fmt = useFormat();
+  const counter = (at: number) =>
+    t('counter', { index: fmt.number(at + 1), count: fmt.number(count) });
 
   const openViewer = (at: number) => {
     setViewerIndex(at);
@@ -74,7 +80,7 @@ export function Gallery({ images, title }: Props) {
     return (
       <div className={styles.empty}>
         <ImageOff aria-hidden="true" />
-        <span>No photos</span>
+        <span>{t('empty')}</span>
       </div>
     );
   }
@@ -89,7 +95,7 @@ export function Gallery({ images, title }: Props) {
         <button
           type="button"
           className={`${className} ${styles.prev}`}
-          aria-label="Previous photo"
+          aria-label={t('previous')}
           disabled={at === 0}
           onClick={() => goTo(target.current, at - 1)}
         >
@@ -98,7 +104,7 @@ export function Gallery({ images, title }: Props) {
         <button
           type="button"
           className={`${className} ${styles.next}`}
-          aria-label="Next photo"
+          aria-label={t('next')}
           disabled={at === count - 1}
           onClick={() => goTo(target.current, at + 1)}
         >
@@ -116,7 +122,7 @@ export function Gallery({ images, title }: Props) {
           onScroll={(e) => setIndex(currentIndex(e.currentTarget))}
           role="group"
           aria-roledescription="carousel"
-          aria-label={`Photos of ${title}`}
+          aria-label={t('label', { title })}
         >
           {images.map((img, i) => (
             <button
@@ -124,13 +130,13 @@ export function Gallery({ images, title }: Props) {
               type="button"
               className={styles.slide}
               onClick={() => openViewer(i)}
-              aria-label={`Open photo ${i + 1} of ${count} full screen`}
+              aria-label={t('open', { index: fmt.number(i + 1), count: fmt.number(count) })}
             >
               <img
                 src={getImageUrl(img, 'medium')}
                 srcSet={`${getImageUrl(img, 'medium')} 900w, ${getImageUrl(img, 'large')} 1600w`}
                 sizes="(min-width: 1024px) 680px, 100vw"
-                alt={`${title}, photo ${i + 1}`}
+                alt={t('alt', { title, index: fmt.number(i + 1) })}
                 width={img.width ?? 4}
                 height={img.height ?? 3}
                 loading={i === 0 ? 'eager' : 'lazy'}
@@ -143,7 +149,7 @@ export function Gallery({ images, title }: Props) {
         {arrows(scroller, index, styles.arrow)}
         {count > 1 && (
           <span className={styles.counter} aria-hidden="true">
-            {index + 1} / {count}
+            <bdi dir="ltr">{counter(index)}</bdi>
           </span>
         )}
       </div>
@@ -155,7 +161,7 @@ export function Gallery({ images, title }: Props) {
               key={img.id}
               type="button"
               className={styles.thumb}
-              aria-label={`Show photo ${i + 1}`}
+              aria-label={t('show', { index: fmt.number(i + 1) })}
               aria-current={i === index ? 'true' : undefined}
               onClick={() => goTo(scroller.current, i)}
             >
@@ -169,7 +175,7 @@ export function Gallery({ images, title }: Props) {
       <dialog
         ref={viewer}
         className={styles.viewer}
-        aria-label={`Photos of ${title}`}
+        aria-label={t('label', { title })}
         onClose={closeViewer}
         onCancel={(e) => {
           e.preventDefault();
@@ -181,13 +187,13 @@ export function Gallery({ images, title }: Props) {
           <>
             <div className={styles.viewerBar}>
               <span aria-live="polite">
-                {viewerIndex + 1} / {count}
+                <bdi dir="ltr">{counter(viewerIndex)}</bdi>
               </span>
               <button
                 type="button"
                 className={styles.viewerClose}
                 onClick={closeViewer}
-                aria-label="Close photos"
+                aria-label={t('close')}
               >
                 <X aria-hidden="true" />
               </button>
@@ -201,7 +207,7 @@ export function Gallery({ images, title }: Props) {
                 <div key={img.id} className={styles.viewerSlide}>
                   <img
                     src={getImageUrl(img, 'large')}
-                    alt={`${title}, photo ${i + 1}`}
+                    alt={t('alt', { title, index: fmt.number(i + 1) })}
                     loading={Math.abs(i - viewerIndex) <= 1 ? 'eager' : 'lazy'}
                     decoding="async"
                   />

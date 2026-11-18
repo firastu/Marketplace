@@ -1,15 +1,16 @@
 'use client';
 
 import { FormEvent, useEffect, useState } from 'react';
-import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
+import { useErrorText } from '@/i18n/errors';
+import { Link, useRouter } from '@/i18n/navigation';
 import { CircleAlert, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { safeNext } from '@/hooks/use-require-auth';
 import { SITE_NAME } from '@/config/site';
 import { LogoMark } from './Logo';
 import { Button } from './ui/Button';
-import { errorText } from './ui/Feedback';
 import { Field, Input } from './ui/Field';
 import styles from './AuthForm.module.css';
 
@@ -18,6 +19,8 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
   const router = useRouter();
   const next = safeNext(useSearchParams().get('next'));
   const isLogin = mode === 'login';
+  const t = useTranslations('auth');
+  const errorText = useErrorText();
 
   const [form, setForm] = useState({ displayName: '', username: '', email: '', password: '' });
   const [showPassword, setShowPassword] = useState(false);
@@ -40,7 +43,7 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
       if (isLogin) await login(form.email, form.password);
       else await register(form);
     } catch (err) {
-      setError(errorText(err, isLogin ? 'Could not log in' : 'Could not create the account'));
+      setError(errorText(err, isLogin ? t('loginFailed') : t('registerFailed')));
       setSubmitting(false);
     }
   };
@@ -56,12 +59,10 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
         <div className={styles.inner}>
           <LogoMark size={40} />
           <h1 className={styles.title}>
-            {isLogin ? 'Welcome back' : `Join ${SITE_NAME}`}
+            {isLogin ? t('loginTitle') : t('registerTitle', { site: SITE_NAME })}
           </h1>
           <p className={styles.lead}>
-            {isLogin
-              ? 'Log in to message sellers, save listings and sell your own things.'
-              : 'Free, and it takes a minute. Then you can sell, save and chat.'}
+            {isLogin ? t('loginLead') : t('registerLead')}
           </p>
 
           {error && (
@@ -74,7 +75,7 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
           <form onSubmit={handleSubmit} className="form">
             {!isLogin && (
               <>
-                <Field label="Your name" htmlFor="displayName" hint="Shown to buyers and sellers">
+                <Field label={t('name')} htmlFor="displayName" hint={t('nameHint')}>
                   <Input
                     id="displayName"
                     value={form.displayName}
@@ -85,13 +86,14 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
                     required
                   />
                 </Field>
-                <Field label="Username" htmlFor="username" hint="At least 3 characters">
+                <Field label={t('username')} htmlFor="username" hint={t('usernameHint')}>
                   <Input
                     id="username"
                     value={form.username}
                     onChange={set('username')}
                     autoComplete="username"
                     autoCapitalize="none"
+                    dir="ltr"
                     minLength={3}
                     maxLength={100}
                     required
@@ -99,7 +101,7 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
                 </Field>
               </>
             )}
-            <Field label="Email" htmlFor="email">
+            <Field label={t('email')} htmlFor="email">
               <Input
                 id="email"
                 type="email"
@@ -108,13 +110,14 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
                 onChange={set('email')}
                 autoComplete="email"
                 autoCapitalize="none"
+                dir="ltr"
                 required
               />
             </Field>
             <Field
-              label="Password"
+              label={t('password')}
               htmlFor="password"
-              hint={isLogin ? undefined : 'At least 8 characters'}
+              hint={isLogin ? undefined : t('passwordHint')}
             >
               <span className={styles.password}>
                 <Input
@@ -131,7 +134,7 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
                   type="button"
                   className={styles.reveal}
                   aria-pressed={showPassword}
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  aria-label={showPassword ? t('hidePassword') : t('showPassword')}
                   onClick={() => setShowPassword((v) => !v)}
                 >
                   {showPassword ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}
@@ -140,14 +143,14 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
             </Field>
 
             <Button type="submit" variant="accent" size="lg" block loading={submitting}>
-              {isLogin ? 'Log in' : 'Create account'}
+              {isLogin ? t('loginSubmit') : t('registerSubmit')}
             </Button>
           </form>
 
           <p className={styles.switch}>
-            {isLogin ? 'New here?' : 'Already have an account?'}{' '}
+            {isLogin ? t('newHere') : t('haveAccount')}{' '}
             <Link href={otherHref} className="link">
-              {isLogin ? 'Create an account' : 'Log in'}
+              {isLogin ? t('createAccount') : t('login')}
             </Link>
           </p>
         </div>

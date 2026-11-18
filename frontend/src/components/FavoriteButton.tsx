@@ -1,12 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
+import { useErrorText } from '@/i18n/errors';
+import { usePathname, useRouter } from '@/i18n/navigation';
 import { Heart } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { useFavorites } from '@/hooks/use-favorites';
 import { loginHref } from '@/hooks/use-require-auth';
-import { errorText, useToast } from '@/components/ui/Feedback';
+import { useToast } from '@/components/ui/Feedback';
 import styles from './FavoriteButton.module.css';
 
 interface Props {
@@ -22,6 +24,8 @@ export function FavoriteButton({ listingId, title, variant = 'overlay' }: Props)
   const router = useRouter();
   const pathname = usePathname();
   const toast = useToast();
+  const t = useTranslations();
+  const errorText = useErrorText();
   const [busy, setBusy] = useState(false);
   const on = isFavorite(listingId);
 
@@ -33,15 +37,15 @@ export function FavoriteButton({ listingId, title, variant = 'overlay' }: Props)
     setBusy(true);
     try {
       const nowOn = await toggle(listingId);
-      toast(nowOn ? 'Saved to your favorites' : 'Removed from favorites', 'success');
+      toast(nowOn ? t('feedback.favoriteAdded') : t('feedback.favoriteRemoved'), 'success');
     } catch (err) {
-      toast(errorText(err, 'Could not update favorites'), 'error');
+      toast(errorText(err, t('feedback.favoriteFailed')), 'error');
     } finally {
       setBusy(false);
     }
   };
 
-  const label = on ? `Remove ${title} from favorites` : `Save ${title} to favorites`;
+  const label = t(on ? 'bits.favorite.remove' : 'bits.favorite.add', { title });
 
   if (variant === 'button') {
     return (
@@ -53,8 +57,8 @@ export function FavoriteButton({ listingId, title, variant = 'overlay' }: Props)
         onClick={handleClick}
       >
         <Heart aria-hidden="true" className={on ? styles.on : undefined} />
-        {on ? 'Saved' : 'Save'}
-        <span className="visually-hidden">: {title}</span>
+        <span aria-hidden="true">{on ? t('bits.favorite.saved') : t('bits.favorite.save')}</span>
+        <span className="visually-hidden">{label}</span>
       </button>
     );
   }

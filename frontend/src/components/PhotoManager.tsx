@@ -11,6 +11,10 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
+import { useErrorText } from '@/i18n/errors';
+import { useFormat } from '@/i18n/use-format';
+import { ApiError } from '@/services/api-client';
 import {
   deleteImage,
   getImageUrl,
@@ -21,7 +25,7 @@ import {
   uploadImage,
 } from '@/services/listings.service';
 import { prepareImage } from '@/utils/prepare-image';
-import { errorText, useToast } from './ui/Feedback';
+import { useToast } from './ui/Feedback';
 import styles from './PhotoManager.module.css';
 
 const MAX_PHOTOS = 15;
@@ -53,6 +57,9 @@ const byOrder = (a: ListingImage, b: ListingImage) => a.sortOrder - b.sortOrder;
  */
 export function PhotoManager({ listingId, initialImages, onCountChange }: Props) {
   const toast = useToast();
+  const t = useTranslations('photos');
+  const fmt = useFormat();
+  const errorText = useErrorText();
   const [images, setImages] = useState(() => [...initialImages].sort(byOrder));
   const [queue, setQueueState] = useState<QueueItem[]>([]);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -93,7 +100,7 @@ export function PhotoManager({ listingId, initialImages, onCountChange }: Props)
         patch(next.key, { state: 'uploading', progress: 0, error: undefined });
         try {
           const blob = await prepareImage(next.file);
-          if (blob.size > MAX_UPLOAD_BYTES) throw new Error('Larger than 10 MB');
+          if (blob.size > MAX_UPLOAD_BYTES) throw new ApiError('Larger than 10 MB', 413);
           const image = await uploadImage(listingId, blob, {
             onProgress: (progress) => patch(next.key, { progress }),
           });
@@ -101,13 +108,13 @@ export function PhotoManager({ listingId, initialImages, onCountChange }: Props)
           setQueue((prev) => prev.filter((i) => i.key !== next.key));
           if (alive.current) setImages((prev) => [...prev, image].sort(byOrder));
         } catch (err) {
-          patch(next.key, { state: 'error', error: errorText(err, 'Upload failed') });
+          patch(next.key, { state: 'error', error: errorText(err, t('uploadFailed')) });
         }
       }
     } finally {
       running.current = false;
     }
-  }, [listingId, patch, setQueue]);
+  }, [listingId, patch, setQueue, errorText, t]);
 
   const handleFiles = (e: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
@@ -116,9 +123,9 @@ export function PhotoManager({ listingId, initialImages, onCountChange }: Props)
     const room = MAX_PHOTOS - images.length - queueRef.current.length;
     const accepted = valid.slice(0, Math.max(room, 0));
     if (valid.length < files.length) {
-      toast('Only JPEG, PNG or WebP photos can be added', 'error');
+      toast(t('wrongType'), 'error');
     } else if (accepted.length < valid.length) {
-      toast(`A listing can have up to ${MAX_PHOTOS} photos`, 'error');
+      toast(t('tooMany', { max: fmt.number(MAX_PHOTOS) }), 'error');
     }
     if (accepted.length === 0) return;
     setQueue((prev) => [
@@ -163,7 +170,7 @@ export function PhotoManager({ listingId, initialImages, onCountChange }: Props)
         await setCoverImage(listingId, image.id);
         setImages((prev) => prev.map((i) => ({ ...i, isPrimary: i.id === image.id })));
       },
-      'Could not change the cover photo',
+      t('coverFailed'),
     );
 
   const move = (index: number, delta: -1 | 1) => {
@@ -174,7 +181,7 @@ export function PhotoManager({ listingId, initialImages, onCountChange }: Props)
     return act(
       images[index].id,
       async () => setImages((await reorderImages(listingId, order)).sort(byOrder)),
-      'Could not reorder the photos',
+      t('reorderFailed'),
     );
   };
 
@@ -186,27 +193,28 @@ export function PhotoManager({ listingId, initialImages, onCountChange }: Props)
         // Reload: deleting the cover makes the server promote another photo.
         setImages((await getListingImages(listingId)).sort(byOrder));
       },
-      'Could not delete the photo',
+      t('deleteFailed'),
     );
 
   const total = images.length + queue.length;
+  const nth = (index: number) => ({ index: fmt.number(index + 1) });
 
   return (
     <div className={styles.manager}>
       <ul className={styles.grid}>
         {images.map((image, index) => (
           <li key={image.id} className={styles.tile} aria-busy={busyId === image.id}>
-            <img src={getImageUrl(image, 'thumb')} alt={`Photo ${index + 1}`} loading="lazy" />
+            <img src={getImageUrl(image, 'thumb')} alt={t('alt', nth(index))} loading="lazy" />
             {image.isPrimary && (
               <span className={styles.cover}>
                 <Star aria-hidden="true" />
-                Cover
+                {t('cover')}
               </span>
             )}
             <div className={styles.tools}>
               <button
                 type="button"
-                aria-label={`Move photo ${index + 1} earlier`}
+                aria-label={t('moveEarlier', nth(index))}
                 disabled={index === 0 || !!busyId}
                 onClick={() => move(index, -1)}
               >
@@ -214,7 +222,7 @@ export function PhotoManager({ listingId, initialImages, onCountChange }: Props)
               </button>
               <button
                 type="button"
-                aria-label={`Use photo ${index + 1} as the cover`}
+                aria-label={t('makeCover', nth(index))}
                 aria-pressed={image.isPrimary}
                 disabled={image.isPrimary || !!busyId}
                 onClick={() => makeCover(image)}
@@ -223,7 +231,7 @@ export function PhotoManager({ listingId, initialImages, onCountChange }: Props)
               </button>
               <button
                 type="button"
-                aria-label={`Delete photo ${index + 1}`}
+                aria-label={t('delete', nth(index))}
                 disabled={!!busyId}
                 onClick={() => remove(image)}
               >
@@ -231,7 +239,7 @@ export function PhotoManager({ listingId, initialImages, onCountChange }: Props)
               </button>
               <button
                 type="button"
-                aria-label={`Move photo ${index + 1} later`}
+                aria-label={t('moveLater', nth(index))}
                 disabled={index === images.length - 1 || !!busyId}
                 onClick={() => move(index, 1)}
               >
@@ -251,11 +259,11 @@ export function PhotoManager({ listingId, initialImages, onCountChange }: Props)
                 <div className={styles.failedActions}>
                   <button type="button" onClick={() => retry(item.key)}>
                     <RefreshCw aria-hidden="true" />
-                    Retry
+                    {t('retry')}
                   </button>
                   <button
                     type="button"
-                    aria-label={`Remove ${item.file.name}`}
+                    aria-label={t('discard', { name: item.file.name })}
                     onClick={() => discard(item.key)}
                   >
                     <X aria-hidden="true" />
@@ -268,10 +276,16 @@ export function PhotoManager({ listingId, initialImages, onCountChange }: Props)
                   className={styles.progress}
                   max={1}
                   value={item.state === 'uploading' ? item.progress : 0}
-                  aria-label={`Uploading ${item.file.name}`}
+                  aria-label={t('uploading', { name: item.file.name })}
                 />
                 <span>
-                  {item.state === 'queued' ? 'Waiting' : `${Math.round(item.progress * 100)}%`}
+                  {item.state === 'queued' ? (
+                    t('waiting')
+                  ) : (
+                    <bdi dir="ltr">
+                      {t('percent', { n: fmt.number(Math.round(item.progress * 100)) })}
+                    </bdi>
+                  )}
                 </span>
               </div>
             )}
@@ -282,7 +296,7 @@ export function PhotoManager({ listingId, initialImages, onCountChange }: Props)
           <li>
             <button type="button" className={styles.add} onClick={() => inputRef.current?.click()}>
               <ImagePlus aria-hidden="true" />
-              <span>{total === 0 ? 'Add photos' : 'Add more'}</span>
+              <span>{total === 0 ? t('add') : t('addMore')}</span>
             </button>
           </li>
         )}
@@ -300,8 +314,7 @@ export function PhotoManager({ listingId, initialImages, onCountChange }: Props)
       />
 
       <p className={styles.help}>
-        {total} of {MAX_PHOTOS} photos. The cover is shown in search results. Large photos are
-        resized on your phone before they are sent, to save data.
+        {t('help', { n: fmt.number(total), max: fmt.number(MAX_PHOTOS) })}
       </p>
     </div>
   );

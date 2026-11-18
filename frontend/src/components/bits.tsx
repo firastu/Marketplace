@@ -1,5 +1,7 @@
 import { BadgeCheck, Star } from 'lucide-react';
-import { initials, priceParts, statusLabel, statusTone } from '@/utils/format';
+import { useTranslations } from 'next-intl';
+import { useFormat } from '@/i18n/use-format';
+import { initials, statusTone } from '@/utils/format';
 
 /** Small presentational pieces shared by several pages. */
 
@@ -12,20 +14,22 @@ export function Price({
   currency: string;
   className?: string;
 }) {
-  const p = priceParts(price, currency);
-  const cls = ['price', p.free && 'price--free', className].filter(Boolean).join(' ');
-  if (p.free || !p.unit) return <span className={cls}>{p.amount}</span>;
-  // Numbers stay left-to-right inside right-to-left text.
+  const p = useFormat().price(price, currency);
+  if (!p) return null;
+  if (p.free) return <span className={`price price--free ${className ?? ''}`}>{p.text}</span>;
+  // The wrapper follows the page direction, so "ل.س" sits after the amount
+  // for an Arabic reader; the digits themselves are isolated left-to-right
+  // and never get reordered by the surrounding right-to-left text.
   return (
-    <span className={cls} dir="ltr">
+    <span className={`price ${className ?? ''}`}>
       {p.unitFirst ? (
-        <>
+        <bdi dir="ltr">
           {p.unit}
           {p.amount}
-        </>
+        </bdi>
       ) : (
         <>
-          {p.amount} <span className="price__unit">{p.unit}</span>
+          <bdi dir="ltr">{p.amount}</bdi> <span className="price__unit">{p.unit}</span>
         </>
       )}
     </span>
@@ -33,10 +37,11 @@ export function Price({
 }
 
 export function StatusBadge({ status }: { status: string }) {
+  const fmt = useFormat();
   const tone = statusTone(status);
   return (
     <span className={tone === 'neutral' ? 'badge' : `badge badge--${tone}`}>
-      {statusLabel(status)}
+      {fmt.status(status)}
     </span>
   );
 }
@@ -56,30 +61,34 @@ export function Avatar({
 }
 
 export function VerifiedBadge() {
+  const t = useTranslations('bits');
   return (
     <span className="badge badge--info">
       <BadgeCheck aria-hidden="true" />
-      Verified
+      {t('verified')}
     </span>
   );
 }
 
 export function RatingSummary({ average, count }: { average: number; count: number }) {
-  if (count === 0) return <span className="muted">No reviews yet</span>;
+  const t = useTranslations('bits');
+  const fmt = useFormat();
+  if (count === 0) return <span className="muted">{t('noReviews')}</span>;
   return (
     <span className="rating">
       <Star aria-hidden="true" className="rating__star" />
-      <strong>{average.toFixed(1)}</strong>
-      <span className="muted">
-        ({count} review{count === 1 ? '' : 's'})
-      </span>
+      <strong>
+        {fmt.number(average, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+      </strong>
+      <span className="muted">{t('reviewCount', { count, n: fmt.number(count) })}</span>
     </span>
   );
 }
 
 export function Stars({ value }: { value: number }) {
+  const t = useTranslations('bits');
   return (
-    <span className="stars" role="img" aria-label={`${value} out of 5`}>
+    <span className="stars" role="img" aria-label={t('stars', { value: String(value) })}>
       {[1, 2, 3, 4, 5].map((n) => (
         <Star key={n} aria-hidden="true" data-on={n <= Math.round(value)} />
       ))}

@@ -22,7 +22,9 @@ export const AUTH_EXPIRED_EVENT = 'auth:expired';
 
 /**
  * A response with a non-2xx status. `status` lets callers tell "you are not
- * logged in any more" (401) apart from a flaky connection or a server error.
+ * logged in any more" (401) apart from a flaky connection (0) or a server
+ * error. `message` is the server's English text: never show it directly,
+ * translate it with useErrorText() from '@/i18n/errors'.
  */
 export class ApiError extends Error {
   constructor(
@@ -70,7 +72,13 @@ export async function apiClient<T>(
         : undefined,
   };
 
-  const res = await fetch(`${API_URL}${endpoint}`, fetchOptions);
+  let res: Response;
+  try {
+    res = await fetch(`${API_URL}${endpoint}`, fetchOptions);
+  } catch {
+    // The request never reached the server: offline, DNS, connection reset.
+    throw new ApiError('Network error', 0);
+  }
 
   if (!res.ok) {
     const payload = await res.json().catch(() => null);
@@ -118,7 +126,7 @@ export function uploadWithProgress<T>(
       if (xhr.status === 401 && token) window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
       reject(new ApiError(errorMessage(payload, xhr.status), xhr.status));
     };
-    xhr.onerror = () => reject(new ApiError('Connection lost. Check your network.', 0));
+    xhr.onerror = () => reject(new ApiError('Network error', 0));
     xhr.onabort = () => reject(new ApiError('Upload cancelled', 0));
     signal?.addEventListener('abort', () => xhr.abort());
     xhr.send(body);

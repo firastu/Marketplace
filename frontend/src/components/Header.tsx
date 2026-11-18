@@ -1,7 +1,8 @@
 'use client';
 
-import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
+import { Link, usePathname, useRouter } from '@/i18n/navigation';
+import { useFormat } from '@/i18n/use-format';
 import {
   Heart,
   LayoutGrid,
@@ -14,6 +15,7 @@ import {
 import { useAuth } from '@/hooks/use-auth';
 import { useUnreadCount } from '@/hooks/use-socket';
 import { loginHref } from '@/hooks/use-require-auth';
+import { LanguageSwitcher } from './LanguageSwitcher';
 import { Logo } from './Logo';
 import { Avatar } from './bits';
 import { Menu } from './ui/Menu';
@@ -38,10 +40,12 @@ export default function Header() {
   const router = useRouter();
   const pathname = usePathname();
   const toast = useToast();
+  const t = useTranslations('nav');
+  const fmt = useFormat();
 
   const handleLogout = () => {
     logout();
-    toast('You are logged out');
+    toast(t('loggedOut'));
     router.push('/');
   };
 
@@ -52,12 +56,14 @@ export default function Header() {
     'aria-current': isActive(href) ? ('page' as const) : undefined,
   });
   const sellHref = user ? SELL_PATH : loginHref(SELL_PATH);
-  const unreadLabel = unreadCount > 0 ? `, ${unreadCount} unread` : '';
+  const unreadText = unreadCount > 99 ? '99+' : fmt.number(unreadCount);
+  const withUnread = (label: string) =>
+    unreadCount > 0 ? t('unread', { label, n: unreadText }) : label;
 
   return (
     <>
       <a href="#main" className={styles.skip}>
-        Skip to content
+        {t('skip')}
       </a>
 
       <header
@@ -66,20 +72,20 @@ export default function Header() {
         data-compact={/^\/messages\/[^/]+/.test(pathname) || undefined}
       >
         <div className={`container ${styles.inner}`}>
-          <Link href="/" className={styles.home} aria-label="Home">
+          <Link href="/" className={styles.home} aria-label={t('home')}>
             <Logo />
           </Link>
 
-          <nav className={styles.nav} aria-label="Main">
-            <Link {...navLink('/')}>Browse</Link>
-            <Link {...navLink('/categories')}>Categories</Link>
+          <nav className={styles.nav} aria-label={t('main')}>
+            <Link {...navLink('/')}>{t('browse')}</Link>
+            <Link {...navLink('/categories')}>{t('categories')}</Link>
           </nav>
 
           <div className={styles.actions}>
             <Link
               href="/categories"
               className={`btn btn--ghost btn--icon ${styles.mobileOnly}`}
-              aria-label="Categories"
+              aria-label={t('categories')}
             >
               <LayoutGrid aria-hidden="true" />
             </Link>
@@ -89,19 +95,19 @@ export default function Header() {
                 <Link
                   href="/favorites"
                   className={`btn btn--ghost btn--icon ${styles.desktopOnly}`}
-                  aria-label="Favorites"
+                  aria-label={t('favorites')}
                 >
                   <Heart aria-hidden="true" />
                 </Link>
                 <Link
                   href="/messages"
                   className={`btn btn--ghost btn--icon ${styles.desktopOnly} ${styles.withDot}`}
-                  aria-label={`Messages${unreadLabel}`}
+                  aria-label={withUnread(t('messages'))}
                 >
                   <MessageCircle aria-hidden="true" />
                   {unreadCount > 0 && (
                     <span className={`count-dot ${styles.dot}`} aria-hidden="true">
-                      {unreadCount > 99 ? '99+' : unreadCount}
+                      {unreadText}
                     </span>
                   )}
                 </Link>
@@ -110,12 +116,17 @@ export default function Header() {
 
             <Link href={sellHref} className={`btn btn--accent ${styles.desktopOnly}`}>
               <Plus aria-hidden="true" />
-              Sell
+              {t('sell')}
             </Link>
+
+            <LanguageSwitcher
+              responsive
+              className={`btn btn--ghost btn--sm ${styles.lang} ${user ? styles.desktopOnly : ''}`}
+            />
 
             {user ? (
               <Menu
-                label="Account menu"
+                label={t('accountMenu')}
                 triggerClassName={styles.accountButton}
                 trigger={<Avatar name={user.displayName || user.username} size="sm" />}
               >
@@ -126,16 +137,17 @@ export default function Header() {
                     </p>
                     <Link href="/listings/my" className="menu__item" onClick={close}>
                       <Store aria-hidden="true" />
-                      My listings
+                      {t('myListings')}
                     </Link>
                     <Link href={`/users/${user.id}`} className="menu__item" onClick={close}>
                       <UserRound aria-hidden="true" />
-                      Public profile
+                      {t('publicProfile')}
                     </Link>
                     <Link href="/favorites" className="menu__item" onClick={close}>
                       <Heart aria-hidden="true" />
-                      Favorites
+                      {t('favorites')}
                     </Link>
+                    <LanguageSwitcher className="menu__item" onSwitch={close} />
                     <div className="menu__sep" />
                     <button
                       type="button"
@@ -146,7 +158,7 @@ export default function Header() {
                       }}
                     >
                       <LogOut aria-hidden="true" className="icon-flip" />
-                      Log out
+                      {t('logout')}
                     </button>
                   </>
                 )}
@@ -155,13 +167,13 @@ export default function Header() {
               !loading && (
                 <>
                   <Link href={loginHref(pathname)} className="btn btn--ghost btn--sm">
-                    Log in
+                    {t('loginShort')}
                   </Link>
                   <Link
                     href="/register"
                     className={`btn btn--primary btn--sm ${styles.desktopOnly}`}
                   >
-                    Sign up
+                    {t('signup')}
                   </Link>
                 </>
               )
@@ -171,10 +183,10 @@ export default function Header() {
       </header>
 
       {!hidesBottomNav(pathname) && (
-        <nav className={styles.bottomNav} aria-label="Quick navigation">
+        <nav className={styles.bottomNav} aria-label={t('quick')}>
           <Link href="/" className={styles.tab} aria-current={isActive('/') ? 'page' : undefined}>
             <Store aria-hidden="true" />
-            Browse
+            {t('browse')}
           </Link>
           <Link
             href={user ? '/favorites' : loginHref('/favorites')}
@@ -182,29 +194,29 @@ export default function Header() {
             aria-current={isActive('/favorites') ? 'page' : undefined}
           >
             <Heart aria-hidden="true" />
-            Saved
+            {t('saved')}
           </Link>
           <Link href={sellHref} className={`${styles.tab} ${styles.sell}`}>
             <span className={styles.sellDisc}>
               <Plus aria-hidden="true" />
             </span>
-            Sell
+            {t('sell')}
           </Link>
           <Link
             href={user ? '/messages' : loginHref('/messages')}
             className={styles.tab}
             aria-current={isActive('/messages') ? 'page' : undefined}
-            aria-label={`Chats${unreadLabel}`}
+            aria-label={withUnread(t('chats'))}
           >
             <span className={styles.withDot}>
               <MessageCircle aria-hidden="true" />
               {unreadCount > 0 && (
                 <span className={`count-dot ${styles.dot}`} aria-hidden="true">
-                  {unreadCount > 99 ? '99+' : unreadCount}
+                  {unreadText}
                 </span>
               )}
             </span>
-            Chats
+            {t('chats')}
           </Link>
           <Link
             href={user ? '/listings/my' : loginHref('/listings/my')}
@@ -212,7 +224,7 @@ export default function Header() {
             aria-current={isActive('/listings/my') ? 'page' : undefined}
           >
             <UserRound aria-hidden="true" />
-            {user ? 'Me' : 'Log in'}
+            {user ? t('me') : t('loginShort')}
           </Link>
         </nav>
       )}
