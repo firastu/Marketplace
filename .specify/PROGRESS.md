@@ -165,9 +165,40 @@ All verified by the new backend test suite (`npm test`, `npm run test:e2e`).
 
 ---
 
+## Independent review pass (second opinion)
+
+Found by reading the code and exercising the running app (API probes + browser flows); each fix has a test that fails without it where practical.
+
+**Fixed — backend**
+- Private originals (EXIF/GPS) were downloadable through alternative URL spellings (`%6Friginal`, `//original`, `/thumb/../original`, `%2F`); responses also printed the original's storage path
+- Duplicate simultaneous requests (register, favorite, review, start conversation) and NUL characters in text crashed with 500 → 409 / 400; a raced conversation start now reuses the conversation
+- WebSocket auth ran after "connected", so an immediate `joinConversation` could be rejected and the chat got no live messages → auth moved into a namespace middleware
+- Unread badge never refreshed after reading; new `POST /conversations/:id/read`
+- `GET /categories/:slug` 200-with-empty-body → 404; inactive subcategories hidden; favorites no longer show taken-down listings; image list honours deactivated sellers; deleting an image of a deleted listing was a 500; stable paging order
+- Demo seed users could not log in (hash did not match `password123`)
+
+**Fixed — frontend**
+- Browse page ignored URL changes (Back/Forward, "Browse" link), fetched on every keystroke, showed errors as "No listings found"
+- One socket per session (was one per hook during connect, never closed); rejoin + reload after reconnect; unlimited reconnect attempts
+- Offline/5xx at startup logged the user out; expired tokens left a half-working UI
+- Retrying a failed photo upload re-sent finished files; repeated "Contact Seller" clicks spammed the seller; "My listings" stopped at 20
+- Docker image no longer routes REST through the Next.js proxy (all guests shared one rate-limit bucket)
+
+**Known, not fixed (need a decision or belong to the roadmap)**
+- Photos of a soft-deleted listing stay publicly reachable by URL (files are kept so a moderator can restore) → purge after a retention period or check the DB before serving
+- JWT in `localStorage`, no refresh/revocation; open sockets are not closed when an account is deactivated
+- Messages, conversations, reviews and favorites lists are unpaginated
+- Price sort and price range compare SYP and USD amounts as plain numbers
+- Category filter covers one level of subcategories only
+- No edit-listing / mark-as-sold / favorites / reviews / report UI although the API exists; listings go live before any photo is uploaded (spec asks for at least one image)
+- Swagger UI (`/api/docs`) is served in production too
+- Mobile header overflows at phone width; category icons render as text ("laptop"); enum values shown raw ("like_new")
+
+---
+
 ## Lint & Typecheck Status
 
-- **Backend**: ✅ 0 errors, 0 warnings; 9 unit + 48 e2e tests passing
+- **Backend**: ✅ 0 errors, 0 warnings; 13 unit + 60 e2e tests passing
 - **Frontend**: ✅ 0 errors
 
 Run with: `cd backend && npm run lint && npm run typecheck && npm test && npm run test:e2e` / `cd frontend && npm run lint && npm run typecheck`

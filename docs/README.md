@@ -58,7 +58,7 @@ A full-featured, eBay Kleinanzeigen–style marketplace built with **NestJS**, *
 | **Backend**  | NestJS 10, TypeORM, Passport JWT, Socket.IO     |
 | **Database** | PostgreSQL 16 (Docker)                           |
 | **Auth**     | JWT (7-day expiry), bcrypt password hashing       |
-| **Uploads**  | Multer disk storage, served statically            |
+| **Uploads**  | Multer (in memory) + sharp; WebP variants served statically |
 | **Docs**     | Swagger/OpenAPI at `/api/docs`                    |
 
 ---
@@ -98,6 +98,8 @@ script tells you if so).
 bash database/scripts/seed.sh
 ```
 
+Demo accounts: `alice@example.com`, `bob@example.com`, `charlie@example.com`, password `password123`.
+
 ### 4. Start the backend
 
 ```bash
@@ -119,7 +121,8 @@ npm run dev             # Runs on http://localhost:3000
 
 - **Frontend**: http://localhost:3000
 - **Swagger docs**: http://localhost:3001/api/docs
-- **LAN access**: http://YOUR_IP:3000. REST calls go through the Next.js `/api` proxy; for the chat WebSocket add your origin to `CORS_ORIGINS` in `backend/.env` (or set it to `*` while testing)
+- **LAN access**: http://YOUR_IP:3000. With `NEXT_PUBLIC_API_URL=/api` (see `frontend/.env.example`) REST calls go through the Next.js `/api` proxy; for the chat WebSocket add your origin to `CORS_ORIGINS` in `backend/.env` (or set it to `*` while testing)
+- **Production**: do not route REST through the `/api` proxy. It does not forward the visitor's IP, so the backend sees all guests as one address and they share one rate-limit bucket (e.g. 20 logins per minute for the whole site). Leave `NEXT_PUBLIC_API_URL` unset so the browser calls `NEXT_PUBLIC_BACKEND_URL/api` directly (the Docker image does this), list the web origin in `CORS_ORIGINS`, and set `TRUST_PROXY` if nginx or a CDN sits in front of the API.
 
 ---
 
@@ -191,6 +194,8 @@ All endpoints are prefixed with `/api`. Protected endpoints require `Authorizati
 | POST   | `/auth/login`      | No   | Login, returns JWT + user      |
 | GET    | `/auth/me`         | Yes  | Get current user profile       |
 
+**Errors**: besides the usual 400 (validation), 401, 403 and 404, the API answers **409** when something already exists (email, username, favorite, review), also when two identical requests race each other, and **400** for text PostgreSQL cannot store (e.g. a NUL character).
+
 **Register** body: `{ username, email, password, displayName? }`
 **Login** body: `{ email, password }`
 **Response**: `{ user: {...}, accessToken: "jwt..." }`
@@ -206,7 +211,9 @@ All endpoints are prefixed with `/api`. Protected endpoints require `Authorizati
 | Method | Endpoint             | Auth | Description                       |
 | ------ | -------------------- | ---- | --------------------------------- |
 | GET    | `/categories`        | No   | Get root categories with children |
-| GET    | `/categories/:slug`  | No   | Get category by slug              |
+| GET    | `/categories/:slug`  | No   | Get category by slug (404 if unknown) |
+
+Only active categories and subcategories are returned, ordered by `sortOrder`.
 
 ### Listings Module
 
@@ -246,7 +253,8 @@ Prefer the `/listings/:id/images` endpoints (upload, list, reorder, set cover, d
 Add `?primary=true` query parameter to set as primary image.
 
 - The file type is detected from the bytes (sharp), never from the client's MIME type or filename; anything else is rejected with 400 before it is written to disk.
-- The server stores the original privately and publishes WebP variants (`thumb` 320px, `medium` 900px, `large` 1600px) without EXIF metadata, so a phone photo's GPS position is never exposed. `GET /uploads/listings/<id>/original/...` returns 404.
+- Image objects in API responses contain `url`, `storageKeyThumb`, `storageKeyMedium`, `storageKeyLarge`, size and order fields. The location of the original (`storageKeyOriginal`) and `processingError` are server-side only.
+- The server stores the original privately and publishes WebP variants (`thumb` 320px, `medium` 900px, `large` 1600px) without EXIF metadata, so a phone photo's GPS position is never exposed. `GET /uploads/listings/<id>/original/...` returns 404, in every URL spelling (percent-encoded, doubled slashes, `..`).
 - Reorder (`PATCH /listings/:id/images/order`) needs every image ID exactly once.
 
 ### Favorites Module
@@ -257,6 +265,9 @@ Add `?primary=true` query parameter to set as primary image.
 | POST   | `/favorites/:listingId` | Yes  | Add listing to favorites   |
 | DELETE | `/favorites/:listingId` | Yes  | Remove from favorites      |
 
+- `POST` on a listing that is already a favorite is a 409.
+- `GET /favorites` keeps sold and reserved listings (with their status) but drops listings that were deleted, removed by moderation, expired, or whose seller was deactivated. Those cannot be favorited either (404).
+
 ### Conversations & Messages Module
 
 | Method | Endpoint                         | Auth | Description                                      |
@@ -266,13 +277,18 @@ Add `?primary=true` query parameter to set as primary image.
 | GET    | `/conversations/:id/messages`    | Yes  | Get messages in a conversation (marks as read)   |
 | POST   | `/conversations`                 | Yes  | Start a new conversation about a listing         |
 | POST   | `/conversations/:id/messages`    | Yes  | Send a message in a conversation                 |
+| POST   | `/conversations/:id/read`        | Yes  | Mark the other participant's messages as read → `{ updated }` |
 
 **Start conversation** body: `{ listingId: "uuid", body: "message text" }`
 **Send message** body: `{ body: "message text" }`
 
+`POST /conversations` for a listing the buyer already has a conversation about adds the message to that conversation (also when two requests arrive at the same time); it never creates a second one.
+
 **How messages are tracked**:
 - Every message is stored in the `messages` table with `is_read = false` by default.
 - When a user opens a conversation (`GET /conversations/:id/messages`), all messages from the **other** participant are marked `is_read = true`.
+- `POST /conversations/:id/read` does the same without returning the thread; the web client calls it when a message arrives while the chat is open.
+- Whenever messages are marked read, the reader's sockets receive `unreadCountChanged`.
 - `GET /conversations/unread-count` counts all unread messages across all conversations for the current user.
 - `GET /conversations` returns each conversation with an `unreadCount` field.
 - This ensures that when a seller logs in after being offline, they immediately see how many new messages arrived and which conversations have unread content.
@@ -308,7 +324,9 @@ const socket = io('http://localhost:3001/chat', {
 });
 ```
 
-The server verifies the JWT on connection. Invalid/missing tokens are disconnected immediately.
+The server verifies the JWT (and that the account is active) in a namespace middleware, before the connection is established. Invalid/missing tokens never connect: the client gets a `connect_error` ("Unauthorized"), and no event handler runs for them.
+
+Rooms belong to one connection. After a reconnect the client must emit `joinConversation` again (the web client does this on every `connect`) and should reload the thread to pick up messages it missed while offline.
 
 ### Rooms
 
@@ -323,13 +341,13 @@ The server verifies the JWT on connection. Invalid/missing tokens are disconnect
 | ---------------------- | -------------------------------------- | ---------------------------------------------- |
 | `newMessage`           | Full message object with sender info   | Sent to `conversation:{id}` room               |
 | `conversationUpdated`  | `{ conversationId, lastMessageAt }`    | Sent to `user:{recipientId}` room              |
-| `unreadCountChanged`   | (no payload)                           | Sent to `user:{recipientId}` — refresh badge   |
+| `unreadCountChanged`   | (no payload)                           | Sent to `user:{recipientId}` on a new message, and to the reader when messages are marked read — refresh badge |
 
 ### Client → Server Events
 
 | Event                | Payload                   | Description                        |
 | -------------------- | ------------------------- | ---------------------------------- |
-| `joinConversation`   | `{ conversationId }`      | Subscribe to live messages         |
+| `joinConversation`   | `{ conversationId }`      | Subscribe to live messages; acknowledged with `{ ok: true }` or `{ ok: false, error }` (participants only) |
 | `leaveConversation`  | `{ conversationId }`      | Unsubscribe from live messages     |
 
 ### Offline Message Handling
@@ -400,7 +418,9 @@ Migrations are plain SQL files in `database/migrations/`, numbered 001–009. `d
 
 - **AuthProvider**: Global React context for login state, wraps the entire app.
 - **Socket.IO hooks**: `useConversationSocket`, `useInboxSocket`, `useUnreadCount` for real-time updates.
-- **API proxy**: Next.js rewrites `/api/*` to `http://localhost:3001/api/*`, enabling LAN access from any device.
+- **API proxy (development)**: with `NEXT_PUBLIC_API_URL=/api`, Next.js rewrites `/api/*` to the backend, enabling LAN access from any device. Not for production, see "Getting Started".
+- **URL-driven browse page**: search, filters, sorting and page live in the query string, so links, Back/Forward and reloads show the same results.
+- **Session handling**: a 401 from the API ends the session; network errors do not.
 - **Unread badge**: Red notification badge in the header showing total unread messages across all conversations.
 
 ---
@@ -412,7 +432,7 @@ Migrations are plain SQL files in `database/migrations/`, numbered 001–009. `d
 | Variable              | Default               | Description                    |
 | --------------------- | --------------------- | ------------------------------ |
 | `POSTGRES_HOST`       | `localhost`           | Database host                  |
-| `POSTGRES_PORT`       | `5433`                | Database port                  |
+| `POSTGRES_PORT`       | `5432` (`.env.example` sets `5433`, the port docker-compose publishes) | Database port |
 | `POSTGRES_USER`       | `marketplace`         | Database user                  |
 | `POSTGRES_PASSWORD`   | `marketplace_secret`  | Database password              |
 | `POSTGRES_DB`         | `marketplace_db`      | Database name                  |
@@ -429,8 +449,8 @@ Migrations are plain SQL files in `database/migrations/`, numbered 001–009. `d
 
 | Variable               | Default | Description                          |
 | ---------------------- | ------- | ------------------------------------ |
-| `NEXT_PUBLIC_API_URL`  | `/api`  | API base URL (relative for LAN)      |
-| `NEXT_PUBLIC_BACKEND_URL` | `http://localhost:3001` | Backend URL seen from the browser (images, WebSocket) |
+| `NEXT_PUBLIC_API_URL`  | `NEXT_PUBLIC_BACKEND_URL` + `/api` | API base URL. `/api` = through the Next.js proxy (development / LAN only) |
+| `NEXT_PUBLIC_BACKEND_URL` | `http://localhost:3001` | Backend URL seen from the browser (REST, images, WebSocket) |
 | `BACKEND_INTERNAL_URL` | `http://localhost:3001` | Target of the `/api` proxy, set at build time |
 
 ---
