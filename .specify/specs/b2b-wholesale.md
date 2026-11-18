@@ -66,7 +66,9 @@ Member roles inside a business: **Owner** (everything, billing, members),
 - **Product** (wholesale, separate from classifieds listings): category,
   title (Arabic/Latin), description, brand, images, **sale unit** (piece,
   pack, carton, dozen, kg, litre), **pack contents** (e.g. "carton of 24 ×
-  330 ml"), **minimum order quantity** in sale units, **stock status** (in
+  330 ml"), **minimum order quantity** in sale units, **order increment**
+  ("sold in multiples of", e.g. 5 cartons; the MOQ must be a multiple of
+  it), **stock status** (in
   stock / low / out / made to order), **lead time**, **price visibility**
   (public / verified businesses only / on request), status (draft / active /
   paused / removed).
@@ -74,12 +76,18 @@ Member roles inside a business: **Owner** (everything, billing, members),
   Example: 1–9 cartons $12.40, 10–49 $11.80, 50+ $11.20.
 - **Price currency**: products are priced in USD or SYP. A supplier who
   prices in USD can set a **daily SYP rate**; buyers see both, with "rate
-  updated today/2 days ago".
+  updated today/2 days ago". A rate older than 3 days (configurable) is
+  stale: the SYP figure is hidden and marked "SYP rate outdated", so buyers
+  only see the USD price.
 - **Cart**: per buyer business, grouped by supplier.
 - **OrderRequest**: buyer business, supplier, items (product, quantity,
-  unit price at request time), delivery governorate and address, requested
-  delivery date, payment method, note, status, totals in the order
-  currency, audit trail of changes.
+  unit price at request time, back-ordered quantity and expected date),
+  delivery governorate and address, requested delivery date, payment
+  method, note, status, response deadline, totals in the price-list
+  currency plus a snapshot of the supplier's SYP rate on the request day
+  (for reference), "below minimum" flag, audit trail of changes.
+- **CustomerAccount** (supplier ↔ buyer business): approved for credit
+  (yes/no), credit days, optional credit limit, price group (phase 3).
 - **RFQ** (phase 3): buyer business, category, description, quantity,
   target price (optional), deadline, governorate; **Quote**: supplier,
   price, validity, lead time, note.
@@ -94,8 +102,14 @@ Member roles inside a business: **Owner** (everything, billing, members),
 - Selling requires verification. An admin reviews documents and approves or
   rejects with a reason. Verified businesses get a badge; the badge is
   revoked if documents expire or fraud is found.
-- Buyers can use Wholesale unverified, but cannot see "verified businesses
-  only" prices or send orders to suppliers that require verified buyers.
+- Buyers can use Wholesale unverified: they can always message
+  suppliers, but cannot see "verified businesses only" prices, and can only
+  send order requests to suppliers that allow unverified buyers (supplier
+  setting, off by default).
+- Documents by business type (to confirm, see §12): shops and other buyers
+  provide a shop licence (رخصة محل) **or** a commercial register entry;
+  suppliers need a commercial register entry, factories an industrial
+  register entry; chamber of commerce/industry membership is optional.
 - Edge cases: duplicate commercial register numbers; member leaves; owner
   transfer; business deactivated (catalogue hidden, open orders frozen,
   both sides notified).
@@ -110,9 +124,15 @@ Member roles inside a business: **Owner** (everything, billing, members),
 - Create/edit products with tiers, pack contents, MOQ, stock, visibility.
 - Bulk update: CSV/Excel import and export (prices and stock), "raise all
   USD prices by x%", and "set today's SYP rate" in one action.
+- Bulk price changes move all tiers of a product together, round to a
+  supplier-chosen step (USD 0.01 / 0.05 / 0.10; SYP 100 / 500 / 1,000),
+  re-run the tier validation below, and show a per-row preview before they
+  are applied. CSV imports report errors per row and apply nothing until
+  the supplier confirms.
 - Pause a product, or the whole storefront (holiday mode).
 - Validation: tiers ascending by quantity with non-increasing unit price;
-  MOQ ≤ first tier quantity; at least one image for active products.
+  MOQ ≤ first tier quantity; MOQ and tier quantities are multiples of the
+  order increment; at least one image for active products.
 
 ### 5.4 Discovery (buyer)
 - Wholesale home: categories, featured verified suppliers, "re-order"
@@ -130,15 +150,28 @@ Member roles inside a business: **Owner** (everything, billing, members),
 ### 5.5 Order requests (phase 2)
 - Cart grouped by supplier; each group shows subtotal, the supplier's
   minimum order for the buyer's governorate, and what is missing to reach
-  it.
+  it, with a suggested add-on.
+- Below the minimum, submitting is blocked by default. A supplier can choose
+  "accept small orders", in which case the request is sent flagged "below
+  minimum" and may be declined.
 - Submitting creates one **order request** per supplier. Status flow:
   `requested → confirmed | changed_by_supplier | declined →
   (buyer accepts changes) → preparing → out_for_delivery → delivered →
   completed`, plus `cancelled` (either side, before preparing).
 - The supplier can change quantities, prices or delivery date; the buyer
   must accept changes before the order proceeds. Every change is logged.
+- **Partial fulfilment** is a structured change, not a free-text note: per
+  item the supplier can offer "deliver n now, back-order m for the next run
+  on <date>". The buyer accepts, drops the back-order, or cancels the item.
+- **Deadlines**: a new request expires if the supplier hasn't answered
+  within 48 hours (supplier-configurable, 12–72 h); a "changed by supplier"
+  request expires if the buyer hasn't accepted within 24 hours. Both sides
+  get a reminder at half-time; on expiry the request is cancelled and any
+  stock held for it is released.
 - Payment happens off-platform; the order records the agreed method.
-  Credit is only offered to customers the supplier has approved.
+  Credit is only offered to customers the supplier has approved for credit
+  (CustomerAccount, available from phase B2). Members with the Sales role
+  can't choose credit unless the Owner allows it.
 - Each order has its own chat thread (reusing conversations).
 - **Re-order**: copy a past order into the cart with current prices,
   flagging items whose price or availability changed.
@@ -156,12 +189,19 @@ Member roles inside a business: **Owner** (everything, billing, members),
 - Buyer posts an RFQ; matching suppliers (category and governorate served)
   are notified; suppliers answer with quotes; the buyer compares side by
   side and converts a quote into an order request.
+- Privacy and fairness: suppliers see the buyer's business type,
+  governorate and verified badge, but not its name or contact details until
+  a quote is accepted. Suppliers who didn't win only learn that the request
+  closed, not who won or at what price.
+- Each quote states whether it matches the spec ("yes" / "partly" plus a
+  note), because substitutes are common.
 
 ### 5.8 Customer price groups & credit (phase 3)
 - Supplier-defined groups (e.g. retail, supermarket, distributor) with their
-  own tiers; credit limit and terms (e.g. 30 days) per approved customer;
-  outstanding balance shown to both sides (informational, no payment
-  processing).
+  own tiers; credit limits per approved customer; outstanding balance shown
+  to both sides (informational, no payment processing).
+- Per-member order limits: orders above a member's limit need Owner or
+  Manager approval before they are sent.
 
 ## 6. Business rules
 - Wholesale products are never mixed into consumer search results; the
@@ -194,8 +234,8 @@ Member roles inside a business: **Owner** (everything, billing, members),
 | Phase | Scope |
 |---|---|
 | **B1 — Catalogue** | Business accounts, members, verification + admin review, storefronts, wholesale products with pack size / MOQ / tiers / visibility, wholesale browse and search, contact supplier |
-| **B2 — Ordering** | Cart by supplier, order requests with confirm/change/decline flow, order chat, re-order, delivery coverage and minimum order per governorate, CSV import/export, supplier dashboard |
-| **B3 — Growth** | RFQs and quotes, customer price groups, credit terms, analytics, team roles, subscription plans and featured placement |
+| **B2 — Ordering** | Cart by supplier, order requests with confirm/change/decline, partial fulfilment and deadlines, order chat, re-order, delivery coverage and minimum order per governorate, approved-for-credit customers, CSV import/export, supplier dashboard |
+| **B3 — Growth** | RFQs and quotes, customer price groups and credit limits, per-member order limits, analytics, subscription plans and featured placement |
 
 Prerequisite: Arabic i18n (in progress) so Wholesale ships bilingual.
 
@@ -218,10 +258,19 @@ Prerequisite: Arabic i18n (in progress) so Wholesale ships bilingual.
 - Share of orders that are re-orders (habit formation).
 - Median supplier response time to a new order request.
 
-## 12. Open questions
+## 12. Design
+
+High-fidelity design canvas (17 boards: buyer home, search, product,
+storefront, cart, order changes, supplier dashboard and catalogue,
+onboarding and verification, RFQ; Arabic versions of home and product):
+https://claude.ai/artifact/PqPBQJdah1T793kMgfTiSC (private to the owner
+until shared).
+
+## 13. Open questions
 - Do suppliers need multiple warehouses/branches with separate stock in B1?
-- Should unverified buyers be able to send order requests at all, or only
-  messages?
-- Verification documents accepted per business type (shop licence vs
-  commercial register vs industrial register)?
+- Confirm the verification documents per business type (§5.1): what can a
+  small shop realistically provide?
+- Below-minimum orders: keep "blocked by default, supplier may allow"?
+- Default response deadlines (48 h supplier, 24 h buyer): right for how
+  suppliers work?
 - Which mobile wallets and banks to list as payment methods?
