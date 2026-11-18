@@ -1,5 +1,6 @@
 import { ExecutionContext, Injectable } from "@nestjs/common";
 import { ThrottlerGuard } from "@nestjs/throttler";
+import { timingSafeEqual } from "crypto";
 
 const MINUTE = 60_000;
 
@@ -43,7 +44,27 @@ export class UserAwareThrottlerGuard extends ThrottlerGuard {
     return userId ? `user:${userId}` : `ip:${req.ip}`;
   }
 
-  protected async shouldSkip(_context: ExecutionContext): Promise<boolean> {
-    return process.env.THROTTLE_DISABLED === "true";
+  protected async shouldSkip(context: ExecutionContext): Promise<boolean> {
+    if (process.env.THROTTLE_DISABLED === "true") return true;
+    const req = context.switchToHttp().getRequest<{
+      headers?: Record<string, string | string[] | undefined>;
+    }>();
+    return isInternalRequest(req?.headers?.["x-internal-key"]);
   }
+}
+
+/**
+ * True when the request carries the INTERNAL_API_KEY shared with the web
+ * app's server (server-side rendering). Those requests come from one IP for
+ * all visitors and must not share a guest rate-limit bucket. The key must
+ * be at least 32 characters; it is compared in constant time.
+ */
+export function isInternalRequest(
+  header: string | string[] | undefined,
+): boolean {
+  const key = process.env.INTERNAL_API_KEY ?? "";
+  if (key.length < 32 || typeof header !== "string") return false;
+  const a = Buffer.from(header);
+  const b = Buffer.from(key);
+  return a.length === b.length && timingSafeEqual(a, b);
 }

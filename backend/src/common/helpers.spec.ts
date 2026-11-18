@@ -7,7 +7,12 @@ import {
 import { readFileSync } from "fs";
 import { join } from "path";
 import * as bcrypt from "bcrypt";
-import { isPrivateUploadPath, parseCorsOrigins } from "../app.setup";
+import {
+  isPrivateUploadPath,
+  parseCorsOrigins,
+  swaggerEnabled,
+} from "../app.setup";
+import { isTokenCurrent } from "../modules/auth/token-validity";
 import { User } from "../modules/users/user.entity";
 import { toSelfUser } from "../modules/users/user-views";
 
@@ -148,5 +153,39 @@ describe("searchWords", () => {
   });
   it("caps the number of words", () => {
     expect(searchWords("a b c d e f g h i j")).toHaveLength(MAX_SEARCH_WORDS);
+  });
+});
+
+describe("swaggerEnabled", () => {
+  it("is on outside production and off in production unless enabled", () => {
+    expect(swaggerEnabled({ NODE_ENV: "development" })).toBe(true);
+    expect(swaggerEnabled({})).toBe(true);
+    expect(swaggerEnabled({ NODE_ENV: "production" })).toBe(false);
+    expect(
+      swaggerEnabled({ NODE_ENV: "production", ENABLE_SWAGGER: "true" }),
+    ).toBe(true);
+  });
+});
+
+describe("isTokenCurrent", () => {
+  const base = Object.assign(new User(), {
+    isActive: true,
+    deletedAt: null,
+    tokenVersion: 0,
+  });
+  it("rejects missing, inactive and deleted accounts", () => {
+    expect(isTokenCurrent(null, 0)).toBe(false);
+    expect(isTokenCurrent({ ...base, isActive: false } as User, 0)).toBe(false);
+    expect(isTokenCurrent({ ...base, deletedAt: new Date() } as User, 0)).toBe(
+      false,
+    );
+  });
+  it("only accepts the account's current token version", () => {
+    const bumped = { ...base, tokenVersion: 2 } as User;
+    expect(isTokenCurrent(bumped, 1)).toBe(false);
+    expect(isTokenCurrent(bumped, 2)).toBe(true);
+    // tokens issued before versions existed carry none
+    expect(isTokenCurrent(base as User, undefined)).toBe(true);
+    expect(isTokenCurrent(bumped, undefined)).toBe(false);
   });
 });

@@ -14,6 +14,7 @@ import { JwtService } from "@nestjs/jwt";
 import { Message } from "./message.entity";
 import { Conversation } from "./conversation.entity";
 import { User } from "../users/user.entity";
+import { isTokenCurrent } from "../auth/token-validity";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -66,9 +67,11 @@ export class MessagesGateway implements OnGatewayInit {
       (typeof header === "string" ? header.replace(/^Bearer /i, "") : "");
     if (!token || typeof token !== "string") throw new Error("No token");
 
-    const payload = this.jwtService.verify<{ sub: string }>(token);
+    const payload = this.jwtService.verify<{ sub: string; tv?: number }>(token);
     const user = await this.usersRepo.findOne({ where: { id: payload.sub } });
-    if (!user || !user.isActive) throw new Error("Account unavailable");
+    if (!isTokenCurrent(user, payload.tv)) {
+      throw new Error("Session expired or account unavailable");
+    }
 
     client.data.userId = user.id;
     await client.join(`user:${user.id}`);
@@ -144,5 +147,10 @@ export class MessagesGateway implements OnGatewayInit {
   /** Tell a user's open tabs to refresh their unread badge. */
   emitUnreadCountChanged(userId: string) {
     this.server.to(`user:${userId}`).emit("unreadCountChanged");
+  }
+
+  /** Close every open socket of a user (account deleted or suspended). */
+  disconnectUser(userId: string) {
+    this.server?.in(`user:${userId}`).disconnectSockets(true);
   }
 }

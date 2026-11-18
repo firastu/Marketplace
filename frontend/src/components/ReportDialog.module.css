@@ -1,0 +1,92 @@
+.reasons {
+  display: grid;
+  gap: var(--s-1);
+  border: 0;
+  min-inline-size: 0;
+}
+
+.reasons legend {
+  margin-block-end: var(--s-2);
+}
+
+.reason {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-block-size: var(--touch);
+  padding-inline: var(--s-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  cursor: pointer;
+}
+
+.reason:has(input:checked) {
+  border-color: var(--brand);
+  background: var(--surface-sunken);
+}
+
+.reason:has(input:focus-visible) {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.reason input {
+  flex: none;
+  inline-size: 1.15rem;
+  block-size: 1.15rem;
+  accent-color: var(--brand);
+}
+
+.reason input:focus-visible {
+  outline: none;
+}
+
+.small {
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+}
+
+.buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--s-2);
+}
+
+.buttons > * {
+  flex: 1;
+}
+
+@media (min-width: 560px) {
+  .buttons > * {
+    flex: none;
+  }
+}
+
+.outcome {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-3);
+  padding-block: var(--s-3);
+  text-align: center;
+}
+
+.outcomeIcon {
+  display: grid;
+  place-items: center;
+  inline-size: 56px;
+  block-size: 56px;
+  border-radius: 50%;
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.outcomeIcon[data-tone='duplicate'] {
+  background: var(--info-soft);
+  color: var(--info);
+}
+
+.outcomeIcon svg {
+  inline-size: 28px;
+  block-size: 28px;
+}

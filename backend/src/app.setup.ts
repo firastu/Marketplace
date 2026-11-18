@@ -75,6 +75,14 @@ function blockOriginalUploads(req: Request, res: Response, next: NextFunction) {
 }
 
 /**
+ * API docs reveal every endpoint and payload, so they are off in production
+ * unless explicitly enabled (e.g. for a demo).
+ */
+export function swaggerEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.NODE_ENV !== "production" || env.ENABLE_SWAGGER === "true";
+}
+
+/**
  * Everything both main.ts and the e2e tests need, so tests exercise the
  * real HTTP configuration (security headers, CORS, validation, uploads).
  */
@@ -110,7 +118,12 @@ export function configureApp(app: NestExpressApplication): void {
   });
 
   const origins = parseCorsOrigins(config.get<string>("CORS_ORIGINS"));
-  app.enableCors({ origin: origins, credentials: true });
+  app.enableCors({
+    origin: origins,
+    credentials: true,
+    // Lets the browser read the file name of the data export download.
+    exposedHeaders: ["Content-Disposition"],
+  });
   app.useWebSocketAdapter(new CorsIoAdapter(app, origins));
 
   app.useGlobalFilters(new DatabaseExceptionFilter());

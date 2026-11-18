@@ -25,6 +25,12 @@ export const OWNER_SETTABLE_STATUSES = ["active", "reserved", "sold"] as const;
 /** Statuses anyone may view. Sold listings stay visible (spec §6). */
 export const PUBLIC_STATUSES = ["active", "reserved", "sold"];
 
+/**
+ * Held for a moderator because the text matched the prohibited-terms list
+ * (migration 013). Visible only to the owner and staff.
+ */
+export const PENDING_REVIEW = "pending_review";
+
 @Entity("listings")
 export class Listing {
   @PrimaryGeneratedColumn("uuid")
@@ -88,6 +94,15 @@ export class Listing {
 
   @Column({ name: "expires_at", type: "timestamptz", nullable: true })
   expiresAt: Date;
+
+  /** Prohibited terms that put the listing on hold (empty when clean). */
+  @Column({
+    name: "moderation_flags",
+    type: "text",
+    array: true,
+    default: () => "'{}'",
+  })
+  moderationFlags: string[];
 
   @OneToMany(() => ListingImage, (img) => img.listing, { cascade: true })
   images: ListingImage[];

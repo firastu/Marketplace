@@ -11,6 +11,9 @@ import { FavoritesModule } from "./modules/favorites/favorites.module";
 import { UploadsModule } from "./modules/uploads/uploads.module";
 import { MessagesModule } from "./modules/messages/messages.module";
 import { ReviewsModule } from "./modules/reviews/reviews.module";
+import { MailModule } from "./modules/mail/mail.module";
+import { AccountModule } from "./modules/account/account.module";
+import { ModerationModule } from "./modules/moderation/moderation.module";
 
 @Module({
   imports: [
@@ -30,6 +33,9 @@ import { ReviewsModule } from "./modules/reviews/reviews.module";
     UploadsModule,
     MessagesModule,
     ReviewsModule,
+    MailModule,
+    AccountModule,
+    ModerationModule,
   ],
 })
 export class AppModule {}

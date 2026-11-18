@@ -12,7 +12,9 @@ import {
   UseInterceptors,
   UploadedFile,
   ParseFilePipe,
+  Res,
 } from "@nestjs/common";
+import type { Response } from "express";
 import { FileInterceptor } from "@nestjs/platform-express";
 import {
   ApiTags,
@@ -43,6 +45,22 @@ export class ListingsController {
   constructor(private readonly listingsService: ListingsService) {}
 
   // ── Listing image sub-resource ────────────────────────────────────────────
+
+  @Public()
+  @Get(":listingId/og-image")
+  @ApiOperation({
+    summary: "Cover photo as a 1200×630 JPEG for link previews (Open Graph)",
+  })
+  async ogImage(
+    @Param("listingId", ParseUUIDPipe) listingId: string,
+    @Res() res: Response,
+  ) {
+    const jpeg = await this.listingsService.ogImage(listingId);
+    res
+      .type("image/jpeg")
+      .setHeader("Cache-Control", "public, max-age=86400")
+      .send(jpeg);
+  }
 
   @Public()
   @Get(":listingId/images")

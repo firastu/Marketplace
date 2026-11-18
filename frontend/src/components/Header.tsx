@@ -4,14 +4,17 @@ import { useTranslations } from 'next-intl';
 import { Link, usePathname, useRouter } from '@/i18n/navigation';
 import { useFormat } from '@/i18n/use-format';
 import {
+  Gavel,
   Heart,
   LayoutGrid,
   LogOut,
   MessageCircle,
   Plus,
+  Settings,
   Store,
   UserRound,
 } from 'lucide-react';
+import { isStaff } from '@/services/auth.service';
 import { useAuth } from '@/hooks/use-auth';
 import { useUnreadCount } from '@/hooks/use-socket';
 import { loginHref } from '@/hooks/use-require-auth';
@@ -30,7 +33,9 @@ function hidesBottomNav(pathname: string): boolean {
     /^\/messages\/[^/]+/.test(pathname) ||
     /^\/listings\/(?!my$)[^/]+/.test(pathname) ||
     pathname === '/login' ||
-    pathname === '/register'
+    pathname === '/register' ||
+    pathname === '/forgot-password' ||
+    pathname === '/reset-password'
   );
 }
 
@@ -147,6 +152,16 @@ export default function Header() {
                       <Heart aria-hidden="true" />
                       {t('favorites')}
                     </Link>
+                    <Link href="/account" className="menu__item" onClick={close}>
+                      <Settings aria-hidden="true" />
+                      {t('account')}
+                    </Link>
+                    {isStaff(user) && (
+                      <Link href="/admin" className="menu__item" onClick={close}>
+                        <Gavel aria-hidden="true" />
+                        {t('moderation')}
+                      </Link>
+                    )}
                     <LanguageSwitcher className="menu__item" onSwitch={close} />
                     <div className="menu__sep" />
                     <button
@@ -221,7 +236,7 @@ export default function Header() {
           <Link
             href={user ? '/listings/my' : loginHref('/listings/my')}
             className={styles.tab}
-            aria-current={isActive('/listings/my') ? 'page' : undefined}
+            aria-current={isActive('/listings/my') || isActive('/account') ? 'page' : undefined}
           >
             <UserRound aria-hidden="true" />
             {user ? t('me') : t('loginShort')}

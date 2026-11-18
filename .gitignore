@@ -47,3 +47,6 @@ infra/docker/postgres/data/
 
 # Ignore uploads directory (contains user-uploaded files, not source code)
 uploads/
+
+# Claude Code agent worktrees (temporary checkouts, never commit)
+.claude/worktrees/

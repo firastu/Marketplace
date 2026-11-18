@@ -3,40 +3,42 @@ import { ConfigService } from "@nestjs/config";
 import { SwaggerModule, DocumentBuilder } from "@nestjs/swagger";
 import { NestExpressApplication } from "@nestjs/platform-express";
 import { AppModule } from "./app.module";
-import { configureApp } from "./app.setup";
+import { configureApp, swaggerEnabled } from "./app.setup";
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   configureApp(app);
   app.enableShutdownHooks();
-  // Swagger API docs
-  const swaggerConfig = new DocumentBuilder()
-    .setTitle("Marketplace API")
-    .setDescription(
-      "REST + WebSocket API for the Marketplace application.\n\n" +
-        "## Authentication\n" +
-        "Most endpoints require a Bearer JWT token obtained via `POST /api/auth/login`.\n\n" +
-        "## Real-time Messaging\n" +
-        "Connect to the WebSocket namespace `/chat` (Socket.IO) with `{ auth: { token } }` for live message delivery.\n\n" +
-        "**Socket events emitted by server:**\n" +
-        "- `newMessage` — new message in a joined conversation room\n" +
-        "- `conversationUpdated` — a conversation received a new message (for inbox)\n" +
-        "- `unreadCountChanged` — unread badge should be refreshed\n\n" +
-        "**Socket events the client can emit:**\n" +
-        "- `joinConversation { conversationId }` — subscribe to live messages\n" +
-        "- `leaveConversation { conversationId }` — unsubscribe\n\n" +
-        "## Image Pipeline\n" +
-        "- `POST /api/listings/:id/images` — upload an image (multipart/form-data, auth required)\n" +
-        "- `GET /api/listings/:id/images` — list listing images\n" +
-        "- `PATCH /api/listings/:id/images/order` — reorder images `{ imageIds: string[] }`\n" +
-        "- `PATCH /api/listings/:id/images/:imageId/cover` — set cover image\n" +
-        "- `DELETE /api/listings/:id/images/:imageId` — soft-delete an image",
-    )
-    .setVersion("0.4.0")
-    .addBearerAuth()
-    .build();
-  const document = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup("api/docs", app, document);
+  if (swaggerEnabled()) {
+    // Swagger API docs
+    const swaggerConfig = new DocumentBuilder()
+      .setTitle("Marketplace API")
+      .setDescription(
+        "REST + WebSocket API for the Marketplace application.\n\n" +
+          "## Authentication\n" +
+          "Most endpoints require a Bearer JWT token obtained via `POST /api/auth/login`.\n\n" +
+          "## Real-time Messaging\n" +
+          "Connect to the WebSocket namespace `/chat` (Socket.IO) with `{ auth: { token } }` for live message delivery.\n\n" +
+          "**Socket events emitted by server:**\n" +
+          "- `newMessage` — new message in a joined conversation room\n" +
+          "- `conversationUpdated` — a conversation received a new message (for inbox)\n" +
+          "- `unreadCountChanged` — unread badge should be refreshed\n\n" +
+          "**Socket events the client can emit:**\n" +
+          "- `joinConversation { conversationId }` — subscribe to live messages\n" +
+          "- `leaveConversation { conversationId }` — unsubscribe\n\n" +
+          "## Image Pipeline\n" +
+          "- `POST /api/listings/:id/images` — upload an image (multipart/form-data, auth required)\n" +
+          "- `GET /api/listings/:id/images` — list listing images\n" +
+          "- `PATCH /api/listings/:id/images/order` — reorder images `{ imageIds: string[] }`\n" +
+          "- `PATCH /api/listings/:id/images/:imageId/cover` — set cover image\n" +
+          "- `DELETE /api/listings/:id/images/:imageId` — soft-delete an image",
+      )
+      .setVersion("0.4.0")
+      .addBearerAuth()
+      .build();
+    const document = SwaggerModule.createDocument(app, swaggerConfig);
+    SwaggerModule.setup("api/docs", app, document);
+  }
 
   const configService = app.get(ConfigService);
   const port = configService.get<number>("PORT", 3001);

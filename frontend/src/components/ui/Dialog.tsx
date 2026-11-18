@@ -35,7 +35,12 @@ export function Dialog({
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    if (open && !el.open) el.showModal();
+    if (open && !el.open) {
+      el.showModal();
+      // The browser focuses the first control (the close button). A form
+      // can mark the field people should start in with `data-autofocus`.
+      el.querySelector<HTMLElement>('[data-autofocus]')?.focus();
+    }
     if (!open && el.open) el.close();
   }, [open]);
 

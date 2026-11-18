@@ -1,0 +1,134 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+}
+
+.page > :global(.page-title) {
+  margin-block-end: 0;
+}
+
+.identity {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-4);
+}
+
+.identityText {
+  flex: 1;
+  min-inline-size: 10rem;
+  overflow-wrap: anywhere;
+}
+
+.name {
+  font-size: var(--text-xl);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-tight);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+.section h2,
+.linksTitle {
+  font-size: var(--text-lg);
+}
+
+.formEnd {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.links {
+  overflow: hidden;
+}
+
+.linksTitle {
+  padding: var(--s-4) var(--s-4) var(--s-2);
+}
+
+.linkRow {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-block-size: var(--touch);
+  padding: var(--s-3) var(--s-4);
+  border-block-start: 1px solid var(--line);
+}
+
+.linkRow:hover {
+  background: var(--surface-sunken);
+}
+
+.linkRow span {
+  flex: 1;
+}
+
+.linkRow svg {
+  flex: none;
+  inline-size: 1.15rem;
+  block-size: 1.15rem;
+  color: var(--ink-3);
+}
+
+@media (min-width: 768px) {
+  .linksTitle {
+    padding: var(--s-6) var(--s-6) var(--s-3);
+  }
+
+  .linkRow {
+    padding-inline: var(--s-6);
+  }
+}
+
+.danger {
+  border-color: color-mix(in srgb, var(--danger) 45%, var(--line));
+}
+
+.danger h2 {
+  color: var(--danger);
+}
+
+.consequences {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  font-size: var(--text-md);
+}
+
+.consequences h3 {
+  font-size: var(--text-md);
+  margin-block-start: var(--s-2);
+}
+
+.consequences ul {
+  display: grid;
+  gap: var(--s-1);
+  padding-inline-start: var(--s-5);
+  list-style: disc;
+  color: var(--ink-2);
+}
+
+.consequences p {
+  margin-block-start: var(--s-2);
+}
+
+.dialogButtons {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--s-2);
+}
+
+.dialogButtons > * {
+  flex: 1;
+}
+
+@media (min-width: 560px) {
+  .dialogButtons > * {
+    flex: none;
+  }
+}

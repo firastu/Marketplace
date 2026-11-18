@@ -9,7 +9,12 @@ import {
 import { ApiTags, ApiOperation, ApiBearerAuth } from "@nestjs/swagger";
 import { AuthService } from "./auth.service";
 import { UsersService } from "../users/users.service";
-import { RegisterDto, LoginDto } from "./dto/auth.dto";
+import {
+  RegisterDto,
+  LoginDto,
+  ForgotPasswordDto,
+  ResetPasswordDto,
+} from "./dto/auth.dto";
 import { Public } from "./public.decorator";
 import { CurrentUser } from "./current-user.decorator";
 import { Throttle } from "@nestjs/throttler";
@@ -39,6 +44,27 @@ export class AuthController {
   @ApiOperation({ summary: "Login with email and password" })
   async login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
+  }
+
+  @Public()
+  @Throttle(AUTH_THROTTLE)
+  @Post("forgot-password")
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      "Send a password reset link (always answers the same, to avoid revealing accounts)",
+  })
+  async forgotPassword(@Body() dto: ForgotPasswordDto) {
+    return this.authService.forgotPassword(dto);
+  }
+
+  @Public()
+  @Throttle(AUTH_THROTTLE)
+  @Post("reset-password")
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "Set a new password with a reset link token" })
+  async resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.authService.resetPassword(dto);
   }
 
   @Get("me")

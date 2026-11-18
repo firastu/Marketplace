@@ -7,7 +7,12 @@ import {
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository, SelectQueryBuilder } from "typeorm";
-import { Listing, PUBLIC_STATUSES } from "./listing.entity";
+import { Listing, PENDING_REVIEW, PUBLIC_STATUSES } from "./listing.entity";
+import { findProhibitedTerms } from "../moderation/prohibited-terms";
+import sharp from "sharp";
+import { readFile } from "fs/promises";
+import { join } from "path";
+import { UPLOAD_DIR } from "../../common/image-upload.utils";
 import { ListingImage } from "./listing-image.entity";
 import { Category } from "../categories/category.entity";
 import { CreateListingDto } from "./dto/create-listing.dto";
@@ -184,6 +189,29 @@ export class ListingsService {
     return listing;
   }
 
+  /**
+   * Link-preview image (Open Graph): the cover photo as a 1200×630 JPEG.
+   * Chat apps and social networks handle WebP unevenly, JPEG everywhere.
+   * Only for publicly visible listings; doesn't count as a view.
+   */
+  async ogImage(id: string): Promise<Buffer> {
+    const listing = await this.findById(id);
+    if (!PUBLIC_STATUSES.includes(listing.status) || !listing.user?.isActive) {
+      throw new NotFoundException("Listing not found");
+    }
+    const cover =
+      listing.images?.find((img) => img.isPrimary) ?? listing.images?.[0];
+    const key = cover?.storageKeyLarge ?? cover?.storageKeyMedium;
+    if (!key) throw new NotFoundException("This listing has no photo");
+    const source = await readFile(join(UPLOAD_DIR, key)).catch(() => null);
+    if (!source) throw new NotFoundException("This listing has no photo");
+    return sharp(source)
+      .resize(1200, 630, { fit: "cover", position: "attention" })
+      .flatten({ background: "#ffffff" })
+      .jpeg({ quality: 82, mozjpeg: true })
+      .toBuffer();
+  }
+
   async findByUser(
     userId: string,
     pagination: PaginationDto,
@@ -201,11 +229,15 @@ export class ListingsService {
 
   async create(userId: string, dto: CreateListingDto): Promise<Listing> {
     await this.assertCategoryExists(dto.categoryId);
+    // Weapons, drugs, forged documents…: held for a moderator, not published.
+    const flags = findProhibitedTerms(dto.title, dto.description);
     const listing = this.listingsRepo.create({
       ...dto,
       currency: (dto.currency as Listing["currency"]) ?? "SYP",
       userId,
       slug: generateSlug(dto.title),
+      status: flags.length ? PENDING_REVIEW : "active",
+      moderationFlags: flags,
     });
     const saved = await this.listingsRepo.save(listing);
     return this.findById(saved.id);
@@ -225,6 +257,22 @@ export class ListingsService {
       ...(dto as Partial<Listing>),
       ...(dto.title ? { slug: generateSlug(dto.title) } : {}),
     };
+
+    // Re-check the text only when it changes, so a price edit on a listing a
+    // moderator approved doesn't send it back to review.
+    if (dto.title !== undefined || dto.description !== undefined) {
+      const flags = findProhibitedTerms(
+        dto.title ?? listing.title,
+        dto.description ?? listing.description,
+      );
+      changes.moderationFlags = flags;
+      if (flags.length) {
+        changes.status = PENDING_REVIEW;
+      } else if (listing.status === PENDING_REVIEW) {
+        changes.status = "active";
+      }
+    }
+
     await this.listingsRepo.update(id, changes);
     return this.findById(id);
   }
@@ -237,6 +285,11 @@ export class ListingsService {
     const listing = await this.findById(id);
     this.assertOwnership(listing, userId);
     this.assertNotRemoved(listing);
+    if (listing.status === PENDING_REVIEW) {
+      throw new ForbiddenException(
+        "This listing is under review; its status can't be changed until a moderator has checked it",
+      );
+    }
     await this.listingsRepo.update(id, { status });
     return this.findById(id);
   }

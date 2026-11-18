@@ -190,15 +190,65 @@ All endpoints are prefixed with `/api`. Protected endpoints require `Authorizati
 
 | Method | Endpoint           | Auth | Description                    |
 | ------ | ------------------ | ---- | ------------------------------ |
-| POST   | `/auth/register`   | No   | Register a new user            |
+| POST   | `/auth/register`   | No   | Register a new user (must accept the terms) |
 | POST   | `/auth/login`      | No   | Login, returns JWT + user      |
+| POST   | `/auth/forgot-password` | No | Email a password reset link |
+| POST   | `/auth/reset-password`  | No | Set a new password with the link's token |
 | GET    | `/auth/me`         | Yes  | Get current user profile       |
 
 **Errors**: besides the usual 400 (validation), 401, 403 and 404, the API answers **409** when something already exists (email, username, favorite, review), also when two identical requests race each other, and **400** for text PostgreSQL cannot store (e.g. a NUL character).
 
-**Register** body: `{ username, email, password, displayName? }`
+**Register** body: `{ username, email, password, displayName?, acceptTerms: true }`. `acceptTerms` must be `true`; the server records `termsAcceptedAt` and `termsVersion` (see `backend/src/common/terms.ts`), which are returned with the user's own account.
 **Login** body: `{ email, password }`
 **Response**: `{ user: {...}, accessToken: "jwt..." }`
+
+**Password reset**
+- `POST /auth/forgot-password` `{ email, locale?: "ar" | "en" }` always answers `200` with the same message, whether or not the email has an account. If it does (and is active), it emails one bilingual link to `${APP_URL}/reset-password?token=…` (`/en/reset-password` for `locale: "en"`), valid 60 minutes, single use; only a SHA-256 hash of the token is stored, and a new request replaces older links.
+- `POST /auth/reset-password` `{ token, password }` → `200`, or `400 "This reset link is invalid or has expired"`.
+- Email goes through SMTP (`SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM`). Without `SMTP_HOST` the email is written to the backend log instead.
+
+**Sessions**: every token carries the account's token version. Resetting or changing the password, or deleting the account, increments it, which signs out every other session immediately (REST and WebSocket).
+
+### Account Module (the logged-in user's own data, GDPR)
+
+| Method | Endpoint                 | Auth | Description |
+| ------ | ------------------------ | ---- | ----------- |
+| PATCH  | `/users/me`              | Yes  | Edit display name, bio, phone (`null`/`""` clears; phone in international format) |
+| POST   | `/users/me/password`     | Yes  | `{ currentPassword, newPassword }` → `{ accessToken }`; other sessions are signed out |
+| GET    | `/users/me/export`       | Yes  | Download all stored data as JSON (profile, listings, favorites, conversations with messages, reviews) |
+| DELETE | `/users/me`              | Yes  | `{ password }` → erases the account (see below) |
+
+**Account deletion**: email, username, display name, phone, bio and avatar are replaced or cleared and the account can't log in again; its listings are deleted and their photos removed from disk; favorites and reviews it wrote are deleted; open chat connections are closed. Messages stay visible to the other person, with the sender shown as `deleted-…`. The email becomes free for a new registration. `GET /users/:id` of a deleted account is 404.
+
+**Retention**: a daily job removes photos of listings deleted more than `LISTING_RETENTION_DAYS` (default 30) days ago and purges expired or used reset tokens. Listings removed by moderators keep their photos.
+
+**API docs**: Swagger at `/api/docs` is available outside production; in production only with `ENABLE_SWAGGER=true`.
+
+**Server-side rendering**: requests with header `X-Internal-Key` equal to `INTERNAL_API_KEY` (at least 32 characters) skip rate limiting. Only the web app's server sends it.
+
+### Reports & Moderation
+
+| Method | Endpoint | Auth | Description |
+| ------ | -------- | ---- | ----------- |
+| POST | `/reports` | Yes | `{ targetType: "listing" \| "user", targetId, reason, details? }`. One open report per user and target (409 otherwise); not your own listing or yourself (400); hidden or unknown targets are 404 |
+| GET | `/admin/stats` | Staff | `{ openReports, pendingListings }` |
+| GET | `/admin/reports?status=open\|under_review\|resolved\|dismissed\|all` | Staff | Reports queue (paginated) with reporter, target listing/user and the number of open reports on the target |
+| PATCH | `/admin/reports/:id` | Staff | `{ status: "under_review" \| "resolved" \| "dismissed", note? }` |
+| GET | `/admin/listings/pending` | Staff | Listings held for review, with `moderationFlags` |
+| POST | `/admin/listings/:id/approve` | Staff | Publish a held listing (`{ note? }`) |
+| POST | `/admin/listings/:id/remove` | Staff | `{ reason }` (required): status `removed`, resolves the listing's open reports |
+| POST | `/admin/listings/:id/restore` | Staff | Removed → active |
+| POST | `/admin/users/:id/suspend` | Staff | `{ reason }` (required): deactivates the account (signed out, listings hidden, sockets closed), resolves reports about the user |
+| POST | `/admin/users/:id/reactivate` | Staff | Undo a suspension |
+| GET | `/admin/actions` | Staff | Moderation log, newest first |
+
+**Statement of reasons**: removing a listing or suspending an account emails the affected user (bilingual) what was decided, the moderator's reason, a link to the rules and that they can contest the decision by replying (EU Digital Services Act, Art. 17). Restoring and reactivating send a short notice.
+
+Staff = role `admin` or `moderator` (others get 403). Nobody can act on themselves, and moderators can't act on admins. Every decision is logged in `moderation_actions` with its reason. Grant the role with `bash database/scripts/make-admin.sh user@example.com [admin|moderator|user]`; it takes effect on the next request.
+
+`reason` values: `prohibited_item`, `scam`, `counterfeit`, `offensive`, `harassment`, `spam`, `wrong_category`, `other`.
+
+**Listings held for review**: when a listing's title or description contains a prohibited term (weapons, ammunition, drugs incl. captagon, forged documents; Arabic and English, matched after Arabic normalisation; see `backend/src/modules/moderation/prohibited-terms.ts`), it is saved with status `pending_review` and `moderationFlags`. It is hidden from everyone except the owner and staff, the owner can't change its status, and an edit that removes the terms publishes it again. Price-only edits don't re-check the text, so an approved listing stays approved.
 
 ### Users Module
 
@@ -222,6 +272,7 @@ Categories carry `name` (English) and `nameAr` (Arabic, may be null — fall bac
 | Method | Endpoint               | Auth | Description                          |
 | ------ | ---------------------- | ---- | ------------------------------------ |
 | GET    | `/listings`            | No   | Get all active listings (paginated)  |
+| GET    | `/listings/:id/og-image` | No | Cover photo as a 1200×630 JPEG for link previews (public listings only, cached 1 day) |
 | GET    | `/listings/my`         | Yes  | Get current user's listings          |
 | GET    | `/listings/:id`        | No   | Get listing by ID with images        |
 | POST   | `/listings`            | Yes  | Create a new listing                 |
@@ -236,7 +287,7 @@ Categories carry `name` (English) and `nameAr` (Arabic, may be null — fall bac
 - `GET /listings` filters: `q`, `categoryId` (includes subcategories), `userId` (one seller's listings), `currency`, `minPrice`, `maxPrice`, `condition`, `locationCity`, `sortBy`.
 - Seller objects (`listing.user`, and users anywhere else in responses) only contain public fields: `id, username, displayName, avatarUrl, bio, isVerified, createdAt`. Email and phone are only returned to the account owner (`/auth/me`, login, register).
 
-**Status values**: `draft`, `active`, `sold`, `reserved`, `expired`, `removed`
+**Status values**: `draft`, `active`, `sold`, `reserved`, `expired`, `removed`, `pending_review` (held for moderation)
 
 - Owners may set `active`, `reserved` or `sold`. `removed` is reserved for moderators; a removed listing can no longer be edited by its owner.
 - `active`, `reserved` and `sold` listings are public. `draft`, `expired` and `removed` listings return 404 to everyone except the owner (send the token; `GET /listings/:id` accepts an optional `Authorization` header).
