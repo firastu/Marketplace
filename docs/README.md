@@ -215,6 +215,8 @@ All endpoints are prefixed with `/api`. Protected endpoints require `Authorizati
 
 Only active categories and subcategories are returned, ordered by `sortOrder`.
 
+Categories carry `name` (English) and `nameAr` (Arabic, may be null — fall back to `name`).
+
 ### Listings Module
 
 | Method | Endpoint               | Auth | Description                          |

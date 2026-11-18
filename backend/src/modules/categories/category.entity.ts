@@ -17,6 +17,10 @@ export class Category {
   @Column({ unique: true, length: 100 })
   name: string;
 
+  /** Arabic display name (migration 011); clients fall back to `name`. */
+  @Column({ name: "name_ar", type: "varchar", length: 100, nullable: true })
+  nameAr: string | null;
+
   @Column({ unique: true, length: 120 })
   slug: string;
 

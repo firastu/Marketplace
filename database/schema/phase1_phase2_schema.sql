@@ -1,6 +1,6 @@
 -- ============================================================
 -- Marketplace App: Full Schema (Phase 1 + Phase 2)
--- Generated from individual migration files (001–010)
+-- Generated from individual migration files (001–011)
 -- ============================================================
 
 -- Extensions
@@ -233,3 +233,6 @@ ALTER TABLE listings
 
 CREATE INDEX idx_listings_search_trgm
     ON listings USING gin (search_text gin_trgm_ops);
+
+-- Arabic category names (migration 011)
+ALTER TABLE categories ADD COLUMN name_ar VARCHAR(100);

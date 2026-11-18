@@ -47,3 +47,34 @@ FROM (VALUES
     ('Accessories', 'accessories', 'Bags, watches, jewelry', 'watch', 4)
 ) AS sub(n, s, d, i, so)
 CROSS JOIN categories c WHERE c.slug = 'fashion';
+
+-- Arabic names (column added in migration 011)
+UPDATE categories c
+SET name_ar = v.name_ar
+FROM (VALUES
+    ('electronics', 'إلكترونيات'),
+    ('vehicles', 'مركبات'),
+    ('fashion', 'أزياء'),
+    ('home-garden', 'المنزل والحديقة'),
+    ('sports-leisure', 'رياضة وترفيه'),
+    ('baby-kids', 'مستلزمات الأطفال'),
+    ('books-media', 'كتب ووسائط'),
+    ('pets', 'حيوانات أليفة'),
+    ('services', 'خدمات'),
+    ('other', 'أخرى'),
+    ('smartphones', 'موبايلات'),
+    ('laptops', 'لابتوبات'),
+    ('tablets', 'تابلت'),
+    ('tvs-audio', 'تلفزيونات وصوتيات'),
+    ('cameras', 'كاميرات'),
+    ('gaming', 'ألعاب فيديو'),
+    ('womens-clothing', 'ملابس نسائية'),
+    ('mens-clothing', 'ملابس رجالية'),
+    ('shoes', 'أحذية'),
+    ('accessories', 'إكسسوارات'),
+    ('cars', 'سيارات'),
+    ('motorcycles', 'دراجات نارية'),
+    ('bicycles', 'دراجات هوائية'),
+    ('vehicle-parts', 'قطع غيار وإكسسوارات')
+) AS v(slug, name_ar)
+WHERE c.slug = v.slug AND c.name_ar IS NULL;
