@@ -6,13 +6,21 @@ import {
   MaxLength,
 } from "class-validator";
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
+import { Transform } from "class-transformer";
+
+const normaliseEmail = ({ value }: { value: unknown }) =>
+  typeof value === "string" ? value.trim().toLowerCase() : value;
+const trim = ({ value }: { value: unknown }) =>
+  typeof value === "string" ? value.trim() : value;
 
 export class RegisterDto {
   @ApiProperty({ example: "user@example.com" })
+  @Transform(normaliseEmail)
   @IsEmail()
   email: string;
 
   @ApiProperty({ example: "johndoe" })
+  @Transform(trim)
   @IsString()
   @MinLength(3)
   @MaxLength(100)
@@ -33,6 +41,7 @@ export class RegisterDto {
 
 export class LoginDto {
   @ApiProperty({ example: "user@example.com" })
+  @Transform(normaliseEmail)
   @IsEmail()
   email: string;
 

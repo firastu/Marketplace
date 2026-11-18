@@ -1,5 +1,7 @@
 import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
+import { ThrottlerModule } from "@nestjs/throttler";
+import { DEFAULT_THROTTLE } from "./common/throttle";
 import { DatabaseModule } from "./database/database.module";
 import { AuthModule } from "./modules/auth/auth.module";
 import { UsersModule } from "./modules/users/users.module";
@@ -16,6 +18,9 @@ import { ReviewsModule } from "./modules/reviews/reviews.module";
       isGlobal: true,
       envFilePath: ".env",
     }),
+    // In-memory counters: fine for one backend instance. Use a Redis
+    // storage adapter once there is more than one.
+    ThrottlerModule.forRoot([DEFAULT_THROTTLE]),
     DatabaseModule,
     AuthModule,
     UsersModule,

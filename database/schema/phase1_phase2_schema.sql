@@ -1,6 +1,6 @@
 -- ============================================================
 -- Marketplace App: Full Schema (Phase 1 + Phase 2)
--- Generated from individual migration files
+-- Generated from individual migration files (001–009)
 -- ============================================================
 
 -- Extensions
@@ -52,7 +52,7 @@ CREATE TABLE listings (
     slug VARCHAR(250) NOT NULL,
     description TEXT NOT NULL,
     price NUMERIC(12, 2) NOT NULL CHECK (price >= 0),
-    currency VARCHAR(3) NOT NULL DEFAULT 'EUR',
+    currency VARCHAR(3) NOT NULL DEFAULT 'SYP' CONSTRAINT listings_currency_check CHECK (currency IN ('SYP', 'USD')),
     condition VARCHAR(20) NOT NULL DEFAULT 'used' CHECK (condition IN ('new', 'like_new', 'used', 'fair', 'poor')),
     status VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('draft', 'active', 'sold', 'reserved', 'expired', 'removed')),
     location_city VARCHAR(100),
@@ -64,7 +64,8 @@ CREATE TABLE listings (
     is_shipping_available BOOLEAN NOT NULL DEFAULT FALSE,
     expires_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    deleted_at TIMESTAMPTZ
 );
 
 -- Listing Images
@@ -176,9 +177,11 @@ CREATE INDEX idx_listings_slug ON listings (slug);
 CREATE INDEX idx_listings_price ON listings (price);
 CREATE INDEX idx_listings_location ON listings (location_city, location_zip);
 CREATE INDEX idx_listings_created ON listings (created_at DESC);
+CREATE INDEX idx_listings_live_created ON listings (created_at DESC) WHERE deleted_at IS NULL AND status = 'active';
 
 CREATE INDEX idx_listing_images_listing ON listing_images (listing_id);
 CREATE INDEX idx_listing_images_primary ON listing_images (listing_id, is_primary);
+CREATE INDEX idx_listing_images_live ON listing_images (listing_id, sort_order) WHERE deleted_at IS NULL;
 
 CREATE INDEX idx_favorites_user ON favorites (user_id);
 CREATE INDEX idx_favorites_listing ON favorites (listing_id);

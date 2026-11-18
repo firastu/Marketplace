@@ -6,10 +6,12 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint src --fix",
-    "typecheck": "./node_modules/.bin/tsc --noEmit"
+    "lint": "eslint src",
+    "typecheck": "./node_modules/.bin/tsc --noEmit",
+    "lint:fix": "eslint src --fix"
   },
   "dependencies": {
+    "lucide-react": "^1.74.0",
     "next": "^15.1.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

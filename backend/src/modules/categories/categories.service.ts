@@ -1,6 +1,6 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, NotFoundException } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository, IsNull } from "typeorm";
+import { Repository } from "typeorm";
 import { Category } from "./category.entity";
 
 @Injectable()
@@ -19,17 +19,32 @@ export class CategoriesService {
   }
 
   async findRoots(): Promise<Category[]> {
-    return this.categoriesRepo.find({
-      where: { parentId: IsNull(), isActive: true },
-      order: { sortOrder: "ASC" },
-      relations: ["children"],
-    });
+    // Deactivated subcategories must not be offered either; the plain
+    // `relations: ["children"]` loaded all of them, in no particular order.
+    return this.categoriesRepo
+      .createQueryBuilder("category")
+      .leftJoinAndSelect("category.children", "child", "child.isActive = true")
+      .where("category.parentId IS NULL")
+      .andWhere("category.isActive = true")
+      .orderBy("category.sortOrder", "ASC")
+      .addOrderBy("category.name", "ASC")
+      .addOrderBy("child.sortOrder", "ASC")
+      .addOrderBy("child.name", "ASC")
+      .getMany();
   }
 
-  async findBySlug(slug: string): Promise<Category | null> {
-    return this.categoriesRepo.findOne({
-      where: { slug, isActive: true },
-      relations: ["children", "parent"],
-    });
+  async findBySlug(slug: string): Promise<Category> {
+    const category = await this.categoriesRepo
+      .createQueryBuilder("category")
+      .leftJoinAndSelect("category.children", "child", "child.isActive = true")
+      .leftJoinAndSelect("category.parent", "parent")
+      .where("category.slug = :slug", { slug })
+      .andWhere("category.isActive = true")
+      .orderBy("child.sortOrder", "ASC")
+      .addOrderBy("child.name", "ASC")
+      .getOne();
+    // Returning null made Nest answer 200 with an empty body.
+    if (!category) throw new NotFoundException("Category not found");
+    return category;
   }
 }

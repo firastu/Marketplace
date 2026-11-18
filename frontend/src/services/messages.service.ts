@@ -1,4 +1,17 @@
 import { apiClient } from './api-client';
+import type { ListingImage, PublicUser } from './listings.service';
+
+export interface ConversationListing {
+  id: string;
+  title: string;
+  price: number | string;
+  currency: string;
+  status: string;
+  /** Set when the seller deleted the listing; the chat is kept. */
+  deletedAt?: string | null;
+  /** Cover photo only (empty when the listing has none or was deleted). */
+  images?: ListingImage[];
+}
 
 export interface Conversation {
   id: string;
@@ -7,9 +20,10 @@ export interface Conversation {
   sellerId: string;
   lastMessageAt: string;
   unreadCount?: number;
-  listing?: { id: string; title: string };
-  buyer?: { id: string; username: string; displayName: string };
-  seller?: { id: string; username: string; displayName: string };
+  lastMessage?: { body: string; senderId: string; createdAt: string } | null;
+  listing?: ConversationListing;
+  buyer?: PublicUser;
+  seller?: PublicUser;
 }
 
 export interface Message {
@@ -19,7 +33,7 @@ export interface Message {
   body: string;
   isRead: boolean;
   createdAt: string;
-  sender?: { id: string; username: string; displayName: string };
+  sender?: PublicUser;
 }
 
 export function getMyConversations(): Promise<Conversation[]> {
@@ -44,4 +58,12 @@ export function sendMessage(conversationId: string, body: string): Promise<Messa
 
 export function getUnreadCount(): Promise<{ count: number }> {
   return apiClient<{ count: number }>('/conversations/unread-count', { auth: true });
+}
+
+/** Mark the other participant's messages as read (chat is open). */
+export function markConversationRead(conversationId: string): Promise<{ updated: number }> {
+  return apiClient<{ updated: number }>(`/conversations/${conversationId}/read`, {
+    method: 'POST',
+    auth: true,
+  });
 }

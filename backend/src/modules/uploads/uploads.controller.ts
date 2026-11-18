@@ -6,7 +6,6 @@ import {
   UseInterceptors,
   UploadedFile,
   ParseFilePipe,
-  MaxFileSizeValidator,
   Query,
 } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
@@ -19,8 +18,10 @@ import {
 } from "@nestjs/swagger";
 import { ListingsService } from "../listings/listings.service";
 import { CurrentUser } from "../auth/current-user.decorator";
+import { Throttle } from "@nestjs/throttler";
+import { WRITE_THROTTLE } from "../../common/throttle";
 import {
-  imageDiskStorage,
+  imageUploadOptions,
   ImageFileValidator,
 } from "../../common/image-upload.utils";
 
@@ -30,6 +31,7 @@ import {
 export class UploadsController {
   constructor(private readonly listingsService: ListingsService) {}
 
+  @Throttle(WRITE_THROTTLE)
   @Post("listings/:listingId")
   @ApiOperation({ summary: "Upload an image for a listing (alias)" })
   @ApiConsumes("multipart/form-data")
@@ -39,28 +41,19 @@ export class UploadsController {
       properties: { file: { type: "string", format: "binary" } },
     },
   })
-  @UseInterceptors(
-    FileInterceptor("file", {
-      storage: imageDiskStorage,
-      limits: { fileSize: 10 * 1024 * 1024 },
-    }),
-  )
+  @UseInterceptors(FileInterceptor("file", imageUploadOptions))
   async uploadImage(
     @Param("listingId", ParseUUIDPipe) listingId: string,
     @CurrentUser("id") userId: string,
-    @UploadedFile(
-      new ParseFilePipe({
-        validators: [
-          new MaxFileSizeValidator({ maxSize: 10 * 1024 * 1024 }),
-          new ImageFileValidator(),
-        ],
-      }),
-    )
+    @UploadedFile(new ParseFilePipe({ validators: [new ImageFileValidator()] }))
     file: Express.Multer.File,
     @Query("primary") primary?: string,
   ) {
-    const url = `/uploads/listings/${file.filename}`;
-    const isPrimary = primary === "true";
-    return this.listingsService.addImage(listingId, userId, url, isPrimary);
+    return this.listingsService.addImage(
+      listingId,
+      userId,
+      file.buffer,
+      primary === "true",
+    );
   }
 }

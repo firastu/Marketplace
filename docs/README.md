@@ -58,7 +58,7 @@ A full-featured, eBay Kleinanzeigen–style marketplace built with **NestJS**, *
 | **Backend**  | NestJS 10, TypeORM, Passport JWT, Socket.IO     |
 | **Database** | PostgreSQL 16 (Docker)                           |
 | **Auth**     | JWT (7-day expiry), bcrypt password hashing       |
-| **Uploads**  | Multer disk storage, served statically            |
+| **Uploads**  | Multer (in memory) + sharp; WebP variants served statically |
 | **Docs**     | Swagger/OpenAPI at `/api/docs`                    |
 
 ---
@@ -83,29 +83,28 @@ This starts PostgreSQL on port **5433** with credentials defined in `docker-comp
 ### 2. Run database migrations
 
 ```bash
-# Connect to the running PostgreSQL container and run migrations in order
-docker exec -i marketplace-db psql -U marketplace -d marketplace_db \
-  < backend/src/database/migrations/001_create_users.sql \
-  < backend/src/database/migrations/002_create_categories.sql \
-  < backend/src/database/migrations/003_create_listings.sql \
-  < backend/src/database/migrations/004_create_listing_images.sql \
-  < backend/src/database/migrations/005_create_favorites.sql \
-  < backend/src/database/migrations/006_create_messages.sql \
-  < backend/src/database/migrations/007_create_reviews.sql
+bash database/scripts/migrate.sh          # applies only pending migrations
+bash database/scripts/migrate.sh --status # shows applied / pending
 ```
+
+Applied migrations are recorded in the `schema_migrations` table, so running
+the script again is safe. Databases created with the old, untracked script
+need a one-time `bash database/scripts/migrate.sh --baseline 008` first (the
+script tells you if so).
 
 ### 3. Seed sample data (optional)
 
 ```bash
-docker exec -i marketplace-db psql -U marketplace -d marketplace_db \
-  < backend/src/database/seeds/seed.sql
+bash database/scripts/seed.sh
 ```
+
+Demo accounts: `alice@example.com`, `bob@example.com`, `charlie@example.com`, password `password123`.
 
 ### 4. Start the backend
 
 ```bash
 cd backend
-cp .env.example .env   # or use existing .env
+cp .env.example .env   # then set JWT_SECRET
 npm install
 npm run start:dev       # Runs on http://localhost:3001
 ```
@@ -122,7 +121,8 @@ npm run dev             # Runs on http://localhost:3000
 
 - **Frontend**: http://localhost:3000
 - **Swagger docs**: http://localhost:3001/api/docs
-- **LAN access**: http://YOUR_IP:3000 (CORS is configured for any origin)
+- **LAN access**: http://YOUR_IP:3000. With `NEXT_PUBLIC_API_URL=/api` (see `frontend/.env.example`) REST calls go through the Next.js `/api` proxy; for the chat WebSocket add your origin to `CORS_ORIGINS` in `backend/.env` (or set it to `*` while testing)
+- **Production**: do not route REST through the `/api` proxy. It does not forward the visitor's IP, so the backend sees all guests as one address and they share one rate-limit bucket (e.g. 20 logins per minute for the whole site). Leave `NEXT_PUBLIC_API_URL` unset so the browser calls `NEXT_PUBLIC_BACKEND_URL/api` directly (the Docker image does this), list the web origin in `CORS_ORIGINS`, and set `TRUST_PROXY` if nginx or a CDN sits in front of the API.
 
 ---
 
@@ -137,7 +137,7 @@ marketplace-app/
 │   │   ├── common/                 # Shared: pagination DTO, paginate helper
 │   │   ├── database/
 │   │   │   ├── database.module.ts  # TypeORM + PostgreSQL config
-│   │   │   ├── migrations/         # SQL migration files (001–007)
+│   │   │   ├── migrations/         # (see /database/migrations)
 │   │   │   └── seeds/              # Sample data
 │   │   └── modules/
 │   │       ├── auth/               # JWT auth, login, register, guards
@@ -194,6 +194,8 @@ All endpoints are prefixed with `/api`. Protected endpoints require `Authorizati
 | POST   | `/auth/login`      | No   | Login, returns JWT + user      |
 | GET    | `/auth/me`         | Yes  | Get current user profile       |
 
+**Errors**: besides the usual 400 (validation), 401, 403 and 404, the API answers **409** when something already exists (email, username, favorite, review), also when two identical requests race each other, and **400** for text PostgreSQL cannot store (e.g. a NUL character).
+
 **Register** body: `{ username, email, password, displayName? }`
 **Login** body: `{ email, password }`
 **Response**: `{ user: {...}, accessToken: "jwt..." }`
@@ -209,7 +211,9 @@ All endpoints are prefixed with `/api`. Protected endpoints require `Authorizati
 | Method | Endpoint             | Auth | Description                       |
 | ------ | -------------------- | ---- | --------------------------------- |
 | GET    | `/categories`        | No   | Get root categories with children |
-| GET    | `/categories/:slug`  | No   | Get category by slug              |
+| GET    | `/categories/:slug`  | No   | Get category by slug (404 if unknown) |
+
+Only active categories and subcategories are returned, ordered by `sortOrder`.
 
 ### Listings Module
 
@@ -225,7 +229,15 @@ All endpoints are prefixed with `/api`. Protected endpoints require `Authorizati
 
 **Create** body: `{ title, description, price, categoryId, condition?, currency?, locationCity?, locationZip?, isNegotiable?, isShippingAvailable? }`
 
+- `currency`: `SYP` (default) or `USD`. `price` 0 means free.
+- `GET /listings` filters: `q`, `categoryId` (includes subcategories), `userId` (one seller's listings), `currency`, `minPrice`, `maxPrice`, `condition`, `locationCity`, `sortBy`.
+- Seller objects (`listing.user`, and users anywhere else in responses) only contain public fields: `id, username, displayName, avatarUrl, bio, isVerified, createdAt`. Email and phone are only returned to the account owner (`/auth/me`, login, register).
+
 **Status values**: `draft`, `active`, `sold`, `reserved`, `expired`, `removed`
+
+- Owners may set `active`, `reserved` or `sold`. `removed` is reserved for moderators; a removed listing can no longer be edited by its owner.
+- `active`, `reserved` and `sold` listings are public. `draft`, `expired` and `removed` listings return 404 to everyone except the owner (send the token; `GET /listings/:id` accepts an optional `Authorization` header).
+- `DELETE /listings/:id` is a soft delete: the listing disappears everywhere, but conversations about it and their messages are kept (`conversation.listing.deletedAt` is set).
 
 **Condition values**: `new`, `like_new`, `used`, `fair`, `poor`
 
@@ -234,10 +246,16 @@ All endpoints are prefixed with `/api`. Protected endpoints require `Authorizati
 | Method | Endpoint                        | Auth | Description                        |
 | ------ | ------------------------------- | ---- | ---------------------------------- |
 | POST   | `/uploads/listings/:listingId`  | Yes  | Upload image (multipart/form-data) |
-| DELETE | `/uploads/images/:imageId`      | Yes  | Delete an image (owner only)       |
 
-**Upload**: Send `file` field as `multipart/form-data`. Accepts JPEG, PNG, WebP, GIF up to 5 MB.
+Prefer the `/listings/:id/images` endpoints (upload, list, reorder, set cover, delete); `/uploads/listings/:listingId` is a backward-compatible alias for upload.
+
+**Upload**: Send `file` field as `multipart/form-data`. Accepts JPEG, PNG or WebP up to 10 MB, max 15 images per listing.
 Add `?primary=true` query parameter to set as primary image.
+
+- The file type is detected from the bytes (sharp), never from the client's MIME type or filename; anything else is rejected with 400 before it is written to disk.
+- Image objects in API responses contain `url`, `storageKeyThumb`, `storageKeyMedium`, `storageKeyLarge`, size and order fields. The location of the original (`storageKeyOriginal`) and `processingError` are server-side only.
+- The server stores the original privately and publishes WebP variants (`thumb` 320px, `medium` 900px, `large` 1600px) without EXIF metadata, so a phone photo's GPS position is never exposed. `GET /uploads/listings/<id>/original/...` returns 404, in every URL spelling (percent-encoded, doubled slashes, `..`).
+- Reorder (`PATCH /listings/:id/images/order`) needs every image ID exactly once.
 
 ### Favorites Module
 
@@ -246,6 +264,9 @@ Add `?primary=true` query parameter to set as primary image.
 | GET    | `/favorites`            | Yes  | Get my favorited listings  |
 | POST   | `/favorites/:listingId` | Yes  | Add listing to favorites   |
 | DELETE | `/favorites/:listingId` | Yes  | Remove from favorites      |
+
+- `POST` on a listing that is already a favorite is a 409.
+- `GET /favorites` keeps sold and reserved listings (with their status) but drops listings that were deleted, removed by moderation, expired, or whose seller was deactivated. Those cannot be favorited either (404).
 
 ### Conversations & Messages Module
 
@@ -256,15 +277,20 @@ Add `?primary=true` query parameter to set as primary image.
 | GET    | `/conversations/:id/messages`    | Yes  | Get messages in a conversation (marks as read)   |
 | POST   | `/conversations`                 | Yes  | Start a new conversation about a listing         |
 | POST   | `/conversations/:id/messages`    | Yes  | Send a message in a conversation                 |
+| POST   | `/conversations/:id/read`        | Yes  | Mark the other participant's messages as read → `{ updated }` |
 
 **Start conversation** body: `{ listingId: "uuid", body: "message text" }`
 **Send message** body: `{ body: "message text" }`
 
+`POST /conversations` for a listing the buyer already has a conversation about adds the message to that conversation (also when two requests arrive at the same time); it never creates a second one.
+
 **How messages are tracked**:
 - Every message is stored in the `messages` table with `is_read = false` by default.
 - When a user opens a conversation (`GET /conversations/:id/messages`), all messages from the **other** participant are marked `is_read = true`.
+- `POST /conversations/:id/read` does the same without returning the thread; the web client calls it when a message arrives while the chat is open.
+- Whenever messages are marked read, the reader's sockets receive `unreadCountChanged`.
 - `GET /conversations/unread-count` counts all unread messages across all conversations for the current user.
-- `GET /conversations` returns each conversation with an `unreadCount` field.
+- `GET /conversations` returns each conversation with an `unreadCount` field, a `lastMessage` preview (`{ body, senderId, createdAt }`, body cut at 140 characters) and the listing's cover photo in `listing.images` (empty once the listing is deleted).
 - This ensures that when a seller logs in after being offline, they immediately see how many new messages arrived and which conversations have unread content.
 
 ### Reviews Module
@@ -277,7 +303,9 @@ Add `?primary=true` query parameter to set as primary image.
 | PUT    | `/reviews/:id`               | Yes  | Update your review               |
 | DELETE | `/reviews/:id`               | Yes  | Delete your review               |
 
-**Create review** body: `{ reviewedUserId, listingId?, rating (1-5), title?, body? }`
+**Create review** body: `{ reviewedUserId, listingId, rating (1-5), title?, body? }`
+
+A review is only accepted when the two users have a conversation about `listingId` in which the reviewed user has replied; one review per reviewer, user and listing.
 
 ---
 
@@ -296,7 +324,9 @@ const socket = io('http://localhost:3001/chat', {
 });
 ```
 
-The server verifies the JWT on connection. Invalid/missing tokens are disconnected immediately.
+The server verifies the JWT (and that the account is active) in a namespace middleware, before the connection is established. Invalid/missing tokens never connect: the client gets a `connect_error` ("Unauthorized"), and no event handler runs for them.
+
+Rooms belong to one connection. After a reconnect the client must emit `joinConversation` again (the web client does this on every `connect`) and should reload the thread to pick up messages it missed while offline.
 
 ### Rooms
 
@@ -311,13 +341,13 @@ The server verifies the JWT on connection. Invalid/missing tokens are disconnect
 | ---------------------- | -------------------------------------- | ---------------------------------------------- |
 | `newMessage`           | Full message object with sender info   | Sent to `conversation:{id}` room               |
 | `conversationUpdated`  | `{ conversationId, lastMessageAt }`    | Sent to `user:{recipientId}` room              |
-| `unreadCountChanged`   | (no payload)                           | Sent to `user:{recipientId}` — refresh badge   |
+| `unreadCountChanged`   | (no payload)                           | Sent to `user:{recipientId}` on a new message, and to the reader when messages are marked read — refresh badge |
 
 ### Client → Server Events
 
 | Event                | Payload                   | Description                        |
 | -------------------- | ------------------------- | ---------------------------------- |
-| `joinConversation`   | `{ conversationId }`      | Subscribe to live messages         |
+| `joinConversation`   | `{ conversationId }`      | Subscribe to live messages; acknowledged with `{ ok: true }` or `{ ok: false, error }` (participants only) |
 | `leaveConversation`  | `{ conversationId }`      | Unsubscribe from live messages     |
 
 ### Offline Message Handling
@@ -367,29 +397,49 @@ categories
 
 ### Migrations
 
-Migrations are plain SQL files in `backend/src/database/migrations/`, numbered 001–007. They must be run in order against the PostgreSQL database.
+Migrations are plain SQL files in `database/migrations/`, numbered 001–009. `database/scripts/migrate.sh` applies them in order, each once, and records them in `schema_migrations`.
 
 ---
 
 ## Frontend Pages
 
-| Route                  | Component          | Description                                   |
-| ---------------------- | ------------------ | --------------------------------------------- |
-| `/`                    | Home               | Paginated listing grid with images and prices |
-| `/login`               | Login              | Email + password login form                   |
-| `/register`            | Register           | Username, email, password, display name form  |
-| `/listings/:id`        | Listing Detail     | Full listing info + "Contact Seller" button   |
-| `/listings/create`     | Create Listing     | Form to post a new listing                    |
-| `/listings/my`         | My Listings        | Manage own listings, delete action            |
-| `/messages`            | Inbox              | All conversations with unread indicators      |
-| `/messages/:id`        | Chat Thread        | Real-time chat with speech bubble UI          |
+| Route                  | Description                                                              |
+| ---------------------- | ------------------------------------------------------------------------ |
+| `/`                    | Browse: search, category rail, filters (sidebar on desktop, bottom sheet on phones), active-filter chips, listing grid, pagination |
+| `/categories`          | Category cards with icons and subcategory chips                          |
+| `/listings/:id`        | Swipeable gallery + full-screen viewer, price/facts, seller card, message sheet, favorite, share; owner actions |
+| `/listings/create`     | Three steps: details → photos (per-file progress, retry) → done          |
+| `/listings/:id/edit`   | Availability (available / reserved / sold), photo management (reorder, cover, delete), details, delete |
+| `/listings/my`         | Account card, own listings by status, per-listing actions                |
+| `/favorites`           | Saved listings                                                           |
+| `/users/:id`           | Public seller page: profile, rating, listings, reviews                   |
+| `/messages`            | Inbox with listing photo, last message and unread count                  |
+| `/messages/:id`        | Chat: listing and counterpart context, day separators, live updates      |
+| `/login`, `/register`  | Auth forms; `?next=/path` returns the user to where they were going      |
+| (any other)            | Designed 404 and error states                                            |
+
+### Design system
+
+The product name is one constant, `frontend/src/config/site.ts` (`SITE_NAME`).
+
+- **Tokens** — `src/styles/tokens.css`: colour (light and dark via `prefers-color-scheme`), type scale, 4px spacing grid, radii, elevation, motion, layout. Components never use raw values.
+- **Base** — `src/styles/base.css`: reset, focus ring, reduced-motion.
+- **UI kit** — `src/styles/ui.css` + `src/components/ui/`: `Button`/`buttonClass`, `Field`/`Input`/`Select`/`Textarea`, chips, badges, cards, avatar, tabs, skeletons, `EmptyState`, `Dialog` (native `<dialog>`; `variant="sheet"` is a bottom sheet on phones), `Menu`, `Stepper`, and `FeedbackProvider` with `useToast()` / `useConfirm()` (no `alert()` / `confirm()`).
+- **Page styles** — CSS Modules next to each page/component. No inline styles.
+- **Type** — Readex Pro (variable, SIL OFL), self-hosted in `src/fonts/`; one design for Latin and Arabic. The Arabic file is only downloaded when a page contains Arabic text.
+- **Icons** — `lucide-react`, imported per icon. `components/CategoryIcon.tsx` maps `categories.icon` names to icons.
+- **RTL-ready** — CSS logical properties only (`inline`/`block`, `start`/`end`); directional icons carry `.icon-flip`; user text uses `dir="auto"`. Setting `<html lang="ar" dir="rtl">` in `app/layout.tsx` mirrors the whole app.
+- **Accessibility** — AA contrast on all token pairs, visible focus, labelled controls, 44px touch targets on coarse pointers, skip link, reduced motion respected.
 
 ### Key Frontend Features
 
 - **AuthProvider**: Global React context for login state, wraps the entire app.
+- **FavoritesProvider**: the user's favorite IDs, loaded once and shared by every heart button.
 - **Socket.IO hooks**: `useConversationSocket`, `useInboxSocket`, `useUnreadCount` for real-time updates.
-- **API proxy**: Next.js rewrites `/api/*` to `http://localhost:3001/api/*`, enabling LAN access from any device.
-- **Unread badge**: Red notification badge in the header showing total unread messages across all conversations.
+- **API proxy (development)**: with `NEXT_PUBLIC_API_URL=/api`, Next.js rewrites `/api/*` to the backend, enabling LAN access from any device. Not for production, see "Getting Started".
+- **URL-driven browse page**: search, filters, sorting and page live in the query string, so links, Back/Forward and reloads show the same results.
+- **Session handling**: a 401 from the API ends the session; network errors do not.
+- **Photo uploads**: large photos are downscaled in the browser (max 2048px JPEG) before upload, sent one at a time with a progress bar each; a failed file can be retried on its own.
 
 ---
 
@@ -400,20 +450,26 @@ Migrations are plain SQL files in `backend/src/database/migrations/`, numbered 0
 | Variable              | Default               | Description                    |
 | --------------------- | --------------------- | ------------------------------ |
 | `POSTGRES_HOST`       | `localhost`           | Database host                  |
-| `POSTGRES_PORT`       | `5433`                | Database port                  |
+| `POSTGRES_PORT`       | `5432` (`.env.example` sets `5433`, the port docker-compose publishes) | Database port |
 | `POSTGRES_USER`       | `marketplace`         | Database user                  |
 | `POSTGRES_PASSWORD`   | `marketplace_secret`  | Database password              |
 | `POSTGRES_DB`         | `marketplace_db`      | Database name                  |
-| `JWT_SECRET`          | (required)            | Secret for JWT signing         |
+| `JWT_SECRET`          | (required)            | Secret for JWT signing; the API refuses to start without it |
 | `JWT_EXPIRES_IN`      | `7d`                  | Token expiry duration          |
 | `PORT`                | `3001`                | Backend HTTP port              |
 | `NODE_ENV`            | `development`         | Environment                    |
+| `UPLOAD_DIR`          | `./uploads`           | Where uploaded images are stored |
+| `CORS_ORIGINS`        | `http://localhost:3000` | Comma-separated allowed origins (REST + WebSocket); `*` = any |
+| `TRUST_PROXY`         | (unset)               | Proxy hops to trust behind nginx etc., so rate limits see real client IPs |
+| `THROTTLE_LIMIT` / `THROTTLE_AUTH_LIMIT` / `THROTTLE_WRITE_LIMIT` | `300` / `20` / `60` | Requests per minute: any route / login+register / create, upload, message, review. Logged-in users are counted per account, guests per IP |
 
 ### Frontend (`frontend/.env.local`)
 
 | Variable               | Default | Description                          |
 | ---------------------- | ------- | ------------------------------------ |
-| `NEXT_PUBLIC_API_URL`  | `/api`  | API base URL (relative for LAN)      |
+| `NEXT_PUBLIC_API_URL`  | `NEXT_PUBLIC_BACKEND_URL` + `/api` | API base URL. `/api` = through the Next.js proxy (development / LAN only) |
+| `NEXT_PUBLIC_BACKEND_URL` | `http://localhost:3001` | Backend URL seen from the browser (REST, images, WebSocket) |
+| `BACKEND_INTERNAL_URL` | `http://localhost:3001` | Target of the `/api` proxy, set at build time |
 
 ---
 

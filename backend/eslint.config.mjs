@@ -8,10 +8,10 @@ export default [
   ...tseslint.configs.recommended,
   configPrettier,
   {
-    files: ['src/**/*.ts'],
+    files: ['src/**/*.ts', 'test/**/*.ts'],
     languageOptions: {
       parserOptions: {
-        project: './tsconfig.json',
+        project: ['./tsconfig.json', './test/tsconfig.json'],
         tsconfigRootDir: process.cwd(),
       },
     },
@@ -21,6 +21,11 @@ export default [
       '@typescript-eslint/no-explicit-any': 'warn',
       'prettier/prettier': 'error',
     },
+  },
+  {
+    // Tests inspect untyped JSON response bodies.
+    files: ['test/**/*.ts'],
+    rules: { '@typescript-eslint/no-explicit-any': 'off' },
   },
   {
     ignores: [

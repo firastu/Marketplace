@@ -4,6 +4,8 @@ import {
   Post,
   Param,
   Body,
+  HttpCode,
+  HttpStatus,
   ParseUUIDPipe,
 } from "@nestjs/common";
 import {
@@ -16,6 +18,8 @@ import {
 import { MessagesService } from "./messages.service";
 import { StartConversationDto, SendMessageDto } from "./dto/messages.dto";
 import { CurrentUser } from "../auth/current-user.decorator";
+import { Throttle } from "@nestjs/throttler";
+import { WRITE_THROTTLE } from "../../common/throttle";
 
 @ApiTags("Conversations")
 @ApiBearerAuth()
@@ -58,6 +62,7 @@ export class MessagesController {
     return this.messagesService.getConversationMessages(id, userId);
   }
 
+  @Throttle(WRITE_THROTTLE)
   @Post()
   @ApiOperation({ summary: "Start a new conversation about a listing" })
   @ApiResponse({
@@ -75,6 +80,21 @@ export class MessagesController {
     );
   }
 
+  @Post(":id/read")
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: "Mark the other participant's messages in a conversation as read",
+  })
+  @ApiParam({ name: "id", description: "Conversation UUID" })
+  @ApiResponse({ status: 200, description: "Returns { updated: number }" })
+  markRead(
+    @Param("id", ParseUUIDPipe) id: string,
+    @CurrentUser("id") userId: string,
+  ) {
+    return this.messagesService.markConversationRead(id, userId);
+  }
+
+  @Throttle(WRITE_THROTTLE)
   @Post(":id/messages")
   @ApiOperation({ summary: "Send a message in a conversation" })
   @ApiParam({ name: "id", description: "Conversation UUID" })

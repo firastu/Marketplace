@@ -2,6 +2,7 @@ import { Controller, Get, Param, ParseUUIDPipe } from "@nestjs/common";
 import { ApiTags, ApiOperation } from "@nestjs/swagger";
 import { UsersService } from "./users.service";
 import { Public } from "../auth/public.decorator";
+import { toPublicUser } from "./user-views";
 
 @ApiTags("Users")
 @Controller("users")
@@ -10,11 +11,9 @@ export class UsersController {
 
   @Public()
   @Get(":id")
-  @ApiOperation({ summary: "Get user profile by ID" })
+  @ApiOperation({ summary: "Get a user's public profile by ID" })
   async getUser(@Param("id", ParseUUIDPipe) id: string) {
     const user = await this.usersService.findById(id);
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { passwordHash, ...profile } = user;
-    return profile;
+    return toPublicUser(user);
   }
 }

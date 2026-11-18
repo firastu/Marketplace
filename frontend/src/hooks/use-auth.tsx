@@ -11,6 +11,7 @@ import {
   register as registerService,
   AuthResponse,
 } from '@/services/auth.service';
+import { ApiError, AUTH_EXPIRED_EVENT } from '@/services/api-client';
 import { disconnectSocket } from '@/hooks/use-socket';
 
 interface AuthContextType {
@@ -31,17 +32,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const stored = getStoredUser();
     if (stored) {
       setUser(stored);
-      // Verify token is still valid
+      // Verify the token is still valid. Only a 401 means it isn't: a
+      // dropped connection or a server hiccup must not sign the user out.
       getMe()
         .then(setUser)
-        .catch(() => {
-          logoutService();
-          setUser(null);
+        .catch((err) => {
+          if (err instanceof ApiError && err.status === 401) {
+            logoutService();
+            disconnectSocket();
+            setUser(null);
+          }
         })
         .finally(() => setLoading(false));
     } else {
       setLoading(false);
     }
+  }, []);
+
+  // Any later request rejected with 401 (token expired, account
+  // deactivated) ends the session instead of leaving a half-working UI.
+  useEffect(() => {
+    const onExpired = () => {
+      logoutService();
+      disconnectSocket();
+      setUser(null);
+    };
+    window.addEventListener(AUTH_EXPIRED_EVENT, onExpired);
+    return () => window.removeEventListener(AUTH_EXPIRED_EVENT, onExpired);
   }, []);
 
   const handleAuth = useCallback((response: AuthResponse) => {

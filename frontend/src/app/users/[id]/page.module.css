@@ -1,0 +1,87 @@
+.skeleton {
+  block-size: 9rem;
+  border-radius: var(--r-lg);
+  margin-block-end: var(--s-6);
+}
+
+.profile {
+  margin-block-end: var(--s-5);
+  overflow: hidden;
+}
+
+.profile > :first-child {
+  border-radius: 0;
+}
+
+.profileBody {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-4);
+  padding: var(--s-5);
+}
+
+.profileText {
+  flex: 1;
+  min-inline-size: 12rem;
+  overflow-wrap: anywhere;
+}
+
+.name {
+  font-size: var(--text-2xl);
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2) var(--s-4);
+  margin-block-start: var(--s-2);
+  font-size: var(--text-sm);
+}
+
+.bio {
+  margin-block-start: var(--s-3);
+  color: var(--ink-2);
+  max-inline-size: 60ch;
+}
+
+.reviews {
+  display: grid;
+  gap: var(--s-3);
+}
+
+@media (min-width: 768px) {
+  .reviews {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.review {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  font-size: var(--text-md);
+}
+
+.reviewHead {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.reviewWho {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-inline-size: 0;
+  font-size: var(--text-xs);
+}
+
+.reviewer {
+  font-size: var(--text-md);
+  font-weight: var(--weight-medium);
+}
+
+.reviewTitle {
+  font-weight: var(--weight-bold);
+}

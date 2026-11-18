@@ -1,10 +1,14 @@
-import { Injectable, Logger, NotFoundException } from "@nestjs/common";
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import sharp from "sharp";
-import { join, extname } from "path";
-import { unlink, mkdir, rename } from "fs/promises";
-import { existsSync } from "fs";
+import { join, posix } from "path";
+import { unlink, mkdir, writeFile } from "fs/promises";
 import { ListingImage } from "./listing-image.entity";
 import { UPLOAD_DIR } from "../../common/image-upload.utils";
 
@@ -13,6 +17,23 @@ const VARIANTS = {
   medium: { width: 900, quality: 85 },
   large: { width: 1600, quality: 90 },
 } as const;
+
+/** Detected format → file extension. Anything else is rejected. */
+const ALLOWED_FORMATS: Record<string, string> = {
+  jpeg: "jpg",
+  png: "png",
+  webp: "webp",
+};
+
+/** Guard against decompression bombs (e.g. a tiny PNG claiming 50k×50k). */
+const MAX_INPUT_PIXELS = 40_000_000;
+
+export interface DetectedImage {
+  format: string;
+  extension: string;
+  width: number;
+  height: number;
+}
 
 @Injectable()
 export class ImageProcessingService {
@@ -23,74 +44,99 @@ export class ImageProcessingService {
     private readonly imageRepo: Repository<ListingImage>,
   ) {}
 
-  async processImage(imageId: string): Promise<ListingImage> {
+  /**
+   * Decodes the header of the uploaded bytes. The client-declared MIME type
+   * and filename are never trusted for the stored file's type or name.
+   */
+  async detectFormat(buffer: Buffer): Promise<DetectedImage> {
+    let meta: sharp.Metadata;
+    try {
+      meta = await sharp(buffer, {
+        limitInputPixels: MAX_INPUT_PIXELS,
+      }).metadata();
+    } catch {
+      throw new BadRequestException(
+        "File is not a valid image. Upload a JPEG, PNG or WebP image.",
+      );
+    }
+    const extension = meta.format ? ALLOWED_FORMATS[meta.format] : undefined;
+    if (!extension || !meta.width || !meta.height) {
+      throw new BadRequestException(
+        `Unsupported image format${meta.format ? ` (${meta.format})` : ""}. Upload a JPEG, PNG or WebP image.`,
+      );
+    }
+    if (meta.width * meta.height > MAX_INPUT_PIXELS) {
+      throw new BadRequestException("Image dimensions are too large");
+    }
+    return {
+      format: meta.format!,
+      extension,
+      width: meta.width,
+      height: meta.height,
+    };
+  }
+
+  /**
+   * Writes the original (kept private, see main.ts) and the public WebP
+   * variants. Variants are re-encoded by sharp, which drops EXIF metadata,
+   * so a phone photo's GPS position is never published.
+   */
+  async processImage(
+    imageId: string,
+    buffer: Buffer,
+    detected: DetectedImage,
+  ): Promise<ListingImage> {
     const image = await this.imageRepo.findOne({ where: { id: imageId } });
     if (!image) throw new NotFoundException("Image not found");
 
-    const rawPath = image.url.replace(/^\/uploads\/listings\//, "");
-    const originalPath = join(UPLOAD_DIR, rawPath);
-
-    this.logger.debug(
-      `Looking for image at: ${originalPath}, exists=${existsSync(originalPath)}`,
-    );
-
-    if (!existsSync(originalPath)) {
-      await this.imageRepo.update(imageId, {
-        status: "failed",
-        processingError: `Original file not found: ${originalPath}`,
-      });
-      throw new NotFoundException("Original image file not found");
-    }
-
     const listingDir = join(UPLOAD_DIR, image.listingId);
-    await mkdir(join(listingDir, "original"), { recursive: true });
-
-    const ext = extname(originalPath);
-    const originalDest = join(listingDir, "original", `${imageId}${ext}`);
-    await rename(originalPath, originalDest);
-
-    const storageKeyOriginal = join(
+    // Storage keys are URL paths, so always use forward slashes.
+    const storageKeyOriginal = posix.join(
       image.listingId,
       "original",
-      `${imageId}${ext}`,
+      `${imageId}.${detected.extension}`,
     );
 
-    const storageKeys: Partial<
-      Record<"storageKeyThumb" | "storageKeyMedium" | "storageKeyLarge", string>
-    > = {};
-
     try {
-      const metadata = await sharp(originalDest).metadata();
-      const inputBuffer = await sharp(originalDest).rotate().toBuffer();
+      await mkdir(join(listingDir, "original"), { recursive: true });
+      await writeFile(join(UPLOAD_DIR, storageKeyOriginal), buffer);
+      // Record the original immediately so cleanup can find it on failure.
+      await this.imageRepo.update(imageId, { storageKeyOriginal });
 
+      const rotated = await sharp(buffer, {
+        limitInputPixels: MAX_INPUT_PIXELS,
+      })
+        .rotate()
+        .toBuffer();
+
+      const storageKeys: Record<string, string> = {};
       for (const [variant, config] of Object.entries(VARIANTS)) {
-        const variantDir = join(listingDir, variant);
-        await mkdir(variantDir, { recursive: true });
-
-        const outName = `${imageId}.webp`;
-        const outPath = join(variantDir, outName);
-        const storageKey = join(image.listingId, variant, outName);
-
-        await sharp(inputBuffer)
+        await mkdir(join(listingDir, variant), { recursive: true });
+        const storageKey = posix.join(
+          image.listingId,
+          variant,
+          `${imageId}.webp`,
+        );
+        await sharp(rotated)
           .resize(config.width, undefined, {
             withoutEnlargement: true,
             fit: "inside",
           })
           .webp({ quality: config.quality })
-          .toFile(outPath);
-
-        if (variant === "thumb") storageKeys.storageKeyThumb = storageKey;
-        if (variant === "medium") storageKeys.storageKeyMedium = storageKey;
-        if (variant === "large") storageKeys.storageKeyLarge = storageKey;
+          .toFile(join(UPLOAD_DIR, storageKey));
+        storageKeys[variant] = storageKey;
       }
 
       await this.imageRepo.update(imageId, {
         status: "ready",
-        width: metadata.width,
-        height: metadata.height,
-        mimeType: metadata.format,
-        storageKeyOriginal,
-        ...storageKeys,
+        url: `/uploads/listings/${storageKeys.medium}`,
+        width: detected.width,
+        height: detected.height,
+        mimeType: `image/${detected.format}`,
+        fileSizeBytes: buffer.length,
+        storageKeyThumb: storageKeys.thumb,
+        storageKeyMedium: storageKeys.medium,
+        storageKeyLarge: storageKeys.large,
       });
 
       this.logger.log(
@@ -109,7 +155,7 @@ export class ImageProcessingService {
   }
 
   async deleteImageFiles(image: ListingImage): Promise<void> {
-    const variants = [
+    const keys = [
       image.storageKeyOriginal,
       image.storageKeyThumb,
       image.storageKeyMedium,
@@ -117,37 +163,13 @@ export class ImageProcessingService {
     ];
 
     await Promise.all(
-      variants.filter(Boolean).map(async (key) => {
-        const filePath = join(UPLOAD_DIR, key);
+      keys.filter(Boolean).map(async (key) => {
         try {
-          await unlink(filePath);
+          await unlink(join(UPLOAD_DIR, key));
         } catch {
           // file may not exist — ok
         }
       }),
     );
-  }
-
-  buildImageUrls(image: ListingImage): {
-    original: string;
-    thumb: string;
-    medium: string;
-    large: string;
-  } {
-    const base = "/uploads/listings";
-    return {
-      original: image.storageKeyOriginal
-        ? `${base}/${image.storageKeyOriginal}`
-        : image.url,
-      thumb: image.storageKeyThumb
-        ? `${base}/${image.storageKeyThumb}`
-        : image.url,
-      medium: image.storageKeyMedium
-        ? `${base}/${image.storageKeyMedium}`
-        : image.url,
-      large: image.storageKeyLarge
-        ? `${base}/${image.storageKeyLarge}`
-        : image.url,
-    };
   }
 }

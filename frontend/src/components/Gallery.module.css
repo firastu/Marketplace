@@ -1,0 +1,256 @@
+.gallery {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  min-inline-size: 0;
+}
+
+.stage {
+  position: relative;
+  border-radius: var(--r-lg);
+  background: var(--surface-sunken);
+  overflow: hidden;
+}
+
+.scroller,
+.viewerScroller {
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+}
+
+.scroller::-webkit-scrollbar,
+.viewerScroller::-webkit-scrollbar {
+  display: none;
+}
+
+.slide {
+  flex: none;
+  inline-size: 100%;
+  aspect-ratio: 4 / 3;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  cursor: zoom-in;
+}
+
+.slide img {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: contain;
+}
+
+.slide:focus-visible {
+  outline-offset: -4px;
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-2);
+  aspect-ratio: 4 / 3;
+  border-radius: var(--r-lg);
+  background: var(--surface-sunken);
+  color: var(--ink-3);
+}
+
+.empty svg {
+  inline-size: 40px;
+  block-size: 40px;
+}
+
+.arrow,
+.viewerArrow {
+  position: absolute;
+  inset-block-start: 50%;
+  display: grid;
+  place-items: center;
+  inline-size: var(--touch);
+  block-size: var(--touch);
+  border-radius: 50%;
+  translate: 0 -50%;
+  transition:
+    opacity var(--dur-1) var(--ease),
+    background-color var(--dur-1) var(--ease);
+}
+
+.arrow {
+  background: var(--surface-raised);
+  color: var(--ink);
+  box-shadow: var(--e-2);
+}
+
+.arrow:disabled,
+.viewerArrow:disabled {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.prev {
+  inset-inline-start: var(--s-2);
+}
+
+.next {
+  inset-inline-end: var(--s-2);
+}
+
+/* Touch users swipe; the arrows are for pointer and keyboard. */
+@media (hover: none) {
+  .arrow {
+    display: none;
+  }
+}
+
+.counter {
+  position: absolute;
+  inset-block-end: var(--s-2);
+  inset-inline-end: var(--s-2);
+  padding: 0.1rem var(--s-2);
+  border-radius: var(--r-pill);
+  background: rgb(20 17 36 / 0.7);
+  color: #fff;
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.thumbs {
+  display: none;
+  gap: var(--s-2);
+  overflow-x: auto;
+  padding: 3px;
+  scrollbar-width: thin;
+}
+
+.thumb {
+  flex: none;
+  inline-size: 76px;
+  aspect-ratio: 4 / 3;
+  border-radius: var(--r-sm);
+  overflow: hidden;
+  opacity: 0.65;
+  outline: 2px solid transparent;
+  outline-offset: 1px;
+  transition: opacity var(--dur-1) var(--ease);
+}
+
+.thumb:hover {
+  opacity: 1;
+}
+
+.thumb[aria-current='true'] {
+  opacity: 1;
+  outline-color: var(--accent);
+}
+
+.thumb img {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+
+@media (min-width: 768px) {
+  .thumbs {
+    display: flex;
+  }
+}
+
+/* Phone: photos run edge to edge */
+@media (max-width: 767px) {
+  .stage {
+    margin-inline: calc(var(--gutter) * -1);
+    border-radius: 0;
+  }
+}
+
+/* ── Full-screen viewer ─────────────────────────────── */
+.viewer {
+  inline-size: 100vw;
+  block-size: 100dvh;
+  max-inline-size: none;
+  max-block-size: none;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: #0d0b18;
+  color: #fff;
+}
+
+.viewer[open] {
+  display: flex;
+  flex-direction: column;
+  animation: fade var(--dur-2) var(--ease);
+}
+
+.viewer::backdrop {
+  background: #0d0b18;
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+
+.viewerBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--s-2) var(--s-2) var(--s-2) var(--s-4);
+  padding-block-start: calc(var(--s-2) + env(safe-area-inset-top));
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.viewerClose {
+  display: grid;
+  place-items: center;
+  inline-size: var(--touch);
+  block-size: var(--touch);
+  border-radius: 50%;
+  color: #fff;
+}
+
+.viewerClose:hover,
+.viewerArrow:hover {
+  background: rgb(255 255 255 / 0.16);
+}
+
+.viewerClose:focus-visible,
+.viewerArrow:focus-visible {
+  outline-color: #fff;
+}
+
+.viewerScroller {
+  flex: 1;
+  min-block-size: 0;
+}
+
+.viewerSlide {
+  flex: none;
+  display: grid;
+  place-items: center;
+  inline-size: 100%;
+  block-size: 100%;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}
+
+.viewerSlide img {
+  max-inline-size: 100%;
+  max-block-size: 100%;
+  object-fit: contain;
+}
+
+.viewerArrow {
+  color: #fff;
+  background: rgb(255 255 255 / 0.08);
+}
+
+@media (hover: none) {
+  .viewerArrow {
+    display: none;
+  }
+}

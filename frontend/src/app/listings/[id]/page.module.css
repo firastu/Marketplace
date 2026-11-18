@@ -1,0 +1,288 @@
+.page {
+  padding-block-start: var(--s-3);
+}
+
+.crumbs {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+  margin-block-end: var(--s-3);
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+}
+
+.crumbs a {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--touch);
+  padding-inline: var(--s-1);
+  border-radius: var(--r-sm);
+}
+
+.crumbs a:hover {
+  color: var(--ink);
+  text-decoration: underline;
+}
+
+.crumbs svg {
+  inline-size: 0.9rem;
+  block-size: 0.9rem;
+}
+
+.layout {
+  display: grid;
+  gap: var(--s-5);
+  align-items: start;
+}
+
+.main,
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  min-inline-size: 0;
+}
+
+.summaryDesktop {
+  display: none;
+}
+
+.summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+
+.title {
+  font-size: var(--text-xl);
+  font-weight: var(--weight-medium);
+  letter-spacing: -0.01em;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.price {
+  font-size: var(--text-2xl);
+  line-height: 1.15;
+}
+
+.facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-1) var(--s-4);
+  margin-block-start: var(--s-1);
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+}
+
+.facts li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+}
+
+.facts svg {
+  inline-size: 0.95rem;
+  block-size: 0.95rem;
+}
+
+.block {
+  padding-block-start: var(--s-5);
+  border-block-start: 1px solid var(--line);
+}
+
+.blockTitle {
+  margin-block-end: var(--s-3);
+  font-size: var(--text-base);
+}
+
+.description {
+  color: var(--ink-2);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s-4);
+}
+
+.details dt {
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+}
+
+.details dd {
+  font-weight: var(--weight-medium);
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.ownerNote {
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+}
+
+.danger {
+  color: var(--danger);
+}
+
+.secondary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s-3);
+}
+
+/* On phones the main action lives in the sticky bar instead. */
+.desktopContact {
+  display: none;
+}
+
+.seller {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-block-size: var(--touch);
+  border-radius: var(--r-md);
+}
+
+.sellerText {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-inline-size: 0;
+  font-size: var(--text-sm);
+}
+
+.sellerName {
+  font-size: var(--text-base);
+  font-weight: var(--weight-bold);
+  overflow-wrap: anywhere;
+}
+
+.seller:hover .sellerName {
+  text-decoration: underline;
+}
+
+.sellerChevron {
+  flex: none;
+  color: var(--ink-3);
+}
+
+.sellerMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-3);
+  margin-block-start: var(--s-3);
+}
+
+.sellerMeta:empty {
+  display: none;
+}
+
+.safety {
+  display: flex;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--r-md);
+  background: var(--surface-sunken);
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+.safety svg {
+  flex: none;
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
+  margin-block-start: 0.15em;
+  color: var(--accent-ink);
+}
+
+.stickyBar {
+  position: sticky;
+  inset-block-end: 0;
+  z-index: var(--z-bar);
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  padding: var(--s-3) var(--gutter);
+  padding-block-end: calc(var(--s-3) + env(safe-area-inset-bottom));
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  backdrop-filter: blur(12px);
+  border-block-start: 1px solid var(--line);
+}
+
+.stickyPrice {
+  flex: none;
+  font-size: var(--text-lg);
+}
+
+.quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+
+.quick :global(.chip) {
+  white-space: normal;
+  text-align: start;
+}
+
+.skGallery {
+  aspect-ratio: 4 / 3;
+  border-radius: var(--r-lg);
+}
+
+.skLine {
+  block-size: 2rem;
+  inline-size: 70%;
+}
+
+.skBlock {
+  block-size: 9rem;
+  border-radius: var(--r-lg);
+}
+
+@media (min-width: 1024px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr) 380px;
+    gap: var(--s-8);
+  }
+
+  .side {
+    position: sticky;
+    inset-block-start: calc(var(--header-h) + var(--s-4));
+  }
+
+  .summaryMobile {
+    display: none;
+  }
+
+  .summaryDesktop {
+    display: block;
+  }
+
+  .desktopContact {
+    display: block;
+  }
+
+  .stickyBar {
+    display: none;
+  }
+
+  .details {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}

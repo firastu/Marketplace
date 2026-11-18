@@ -12,9 +12,12 @@ export class CreateReviewDto {
   @IsUUID()
   reviewedUserId: string;
 
+  /**
+   * The listing the two users talked about. Required: a review must come
+   * from a real conversation, otherwise anyone could rate anyone.
+   */
   @IsUUID()
-  @IsOptional()
-  listingId?: string;
+  listingId: string;
 
   @IsInt()
   @Min(1)
@@ -27,6 +30,7 @@ export class CreateReviewDto {
   title?: string;
 
   @IsString()
+  @MaxLength(2000)
   @IsOptional()
   body?: string;
 }
@@ -44,6 +48,7 @@ export class UpdateReviewDto {
   title?: string;
 
   @IsString()
+  @MaxLength(2000)
   @IsOptional()
   body?: string;
 }

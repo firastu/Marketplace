@@ -1,0 +1,166 @@
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s-3);
+}
+
+@media (min-width: 640px) {
+  .grid {
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: var(--s-4);
+  }
+}
+
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  overflow: hidden;
+  transition:
+    transform var(--dur-2) var(--ease),
+    box-shadow var(--dur-2) var(--ease),
+    border-color var(--dur-2) var(--ease);
+}
+
+@media (hover: hover) {
+  .card:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--e-2);
+    border-color: var(--line-strong);
+  }
+
+  .card:hover .media img {
+    transform: scale(1.04);
+  }
+}
+
+.card:focus-within {
+  border-color: var(--focus);
+}
+
+.media {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  background: var(--surface-sunken);
+  overflow: hidden;
+}
+
+.media img {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+  transition: transform var(--dur-3) var(--ease);
+}
+
+.dimmed {
+  filter: grayscale(0.6) opacity(0.7);
+}
+
+.placeholder {
+  display: grid;
+  place-items: center;
+  inline-size: 100%;
+  block-size: 100%;
+  color: var(--line-strong);
+}
+
+.placeholder svg {
+  inline-size: 32px;
+  block-size: 32px;
+}
+
+.ribbon {
+  position: absolute;
+  inset-block-end: var(--s-2);
+  inset-inline-start: var(--s-2);
+  padding: 0.1rem var(--s-2);
+  border-radius: var(--r-pill);
+  background: var(--ink);
+  color: var(--bg);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  padding: var(--s-3);
+  min-inline-size: 0;
+}
+
+.price {
+  font-size: var(--text-lg);
+  line-height: 1.2;
+}
+
+.title {
+  font-size: var(--text-md);
+  font-weight: var(--weight-regular);
+  letter-spacing: 0;
+  line-height: 1.4;
+  color: var(--ink-2);
+  min-block-size: 2.8em;
+}
+
+/* The whole card is the link target; the heart sits above it. */
+.link::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+
+.link:focus-visible {
+  outline: none;
+}
+
+.meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+  margin-block-start: var(--s-1);
+  font-size: var(--text-xs);
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+
+.place {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-inline-size: 0;
+  white-space: normal;
+}
+
+.place svg {
+  flex: none;
+  inline-size: 0.85rem;
+  block-size: 0.85rem;
+}
+
+.fav {
+  position: absolute;
+  inset-block-start: var(--s-1);
+  inset-inline-end: var(--s-1);
+  z-index: 1;
+}
+
+.skPrice {
+  inline-size: 45%;
+  block-size: 1.2rem;
+}
+
+.skTitle {
+  inline-size: 90%;
+  block-size: 2.4rem;
+}
+
+.skMeta {
+  inline-size: 60%;
+  block-size: 0.8rem;
+}

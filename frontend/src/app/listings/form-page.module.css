@@ -1,0 +1,91 @@
+.loading {
+  min-block-size: 50dvh;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+}
+
+.section + .section {
+  margin-block-start: var(--s-5);
+}
+
+.sectionHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  flex-wrap: wrap;
+}
+
+.statusRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+
+.done {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-3);
+  text-align: center;
+}
+
+.doneIcon {
+  display: grid;
+  place-items: center;
+  inline-size: 72px;
+  block-size: 72px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--on-accent);
+  animation: pop var(--dur-3) var(--ease);
+}
+
+.doneIcon svg {
+  inline-size: 32px;
+  block-size: 32px;
+}
+
+.doneActions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  inline-size: 100%;
+  max-inline-size: 22rem;
+  margin-block-start: var(--s-3);
+}
+
+.back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  min-block-size: var(--touch);
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+.back:hover {
+  color: var(--ink);
+}
+
+.back svg {
+  inline-size: 1rem;
+  block-size: 1rem;
+}
+
+.skeleton {
+  block-size: 16rem;
+  border-radius: var(--r-lg);
+  margin-block-end: var(--s-5);
+}
+
+@keyframes pop {
+  from {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+}

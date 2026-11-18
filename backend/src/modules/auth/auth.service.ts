@@ -1,12 +1,14 @@
 import {
   Injectable,
   ConflictException,
+  ForbiddenException,
   UnauthorizedException,
 } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import * as bcrypt from "bcrypt";
 import { UsersService } from "../users/users.service";
 import { RegisterDto, LoginDto } from "./dto/auth.dto";
+import { toSelfUser } from "../users/user-views";
 
 @Injectable()
 export class AuthService {
@@ -37,14 +39,11 @@ export class AuthService {
       ...(dto.displayName ? { displayName: dto.displayName } : {}),
     });
 
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { passwordHash, ...result } = user;
-    const token = this.generateToken(user);
-    return { user: result, accessToken: token };
+    return { user: toSelfUser(user), accessToken: this.generateToken(user) };
   }
 
   async login(dto: LoginDto) {
-    const user = await this.usersService.findByEmail(dto.email);
+    const user = await this.usersService.findByEmailWithPassword(dto.email);
     if (!user) {
       throw new UnauthorizedException("Invalid credentials");
     }
@@ -54,12 +53,18 @@ export class AuthService {
       throw new UnauthorizedException("Invalid credentials");
     }
 
-    await this.usersService.update(user.id, { lastLoginAt: new Date() });
+    // Checked after the password so this doesn't reveal which emails exist.
+    if (!user.isActive) {
+      throw new ForbiddenException("This account has been deactivated");
+    }
 
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { passwordHash, ...result } = user;
-    const token = this.generateToken(user);
-    return { user: result, accessToken: token };
+    const updated = await this.usersService.update(user.id, {
+      lastLoginAt: new Date(),
+    });
+    return {
+      user: toSelfUser(updated),
+      accessToken: this.generateToken(updated),
+    };
   }
 
   private generateToken(user: {
