@@ -10,6 +10,7 @@ import { Conversation } from "./conversation.entity";
 import { Message } from "./message.entity";
 import { Listing } from "../listings/listing.entity";
 import { MessagesGateway } from "./messages.gateway";
+import { isUniqueViolation } from "../../common/database-exception.filter";
 
 const CONTACTABLE_STATUSES = ["active", "reserved"];
 
@@ -118,13 +119,17 @@ export class MessagesService {
     }
 
     if (!conv) {
-      conv = this.convRepo.create({
-        listingId,
-        buyerId,
-        sellerId: listing.userId,
-        lastMessageAt: new Date(),
-      });
-      conv = await this.convRepo.save(conv);
+      const where = { listingId, buyerId, sellerId: listing.userId };
+      try {
+        conv = await this.convRepo.save(
+          this.convRepo.create({ ...where, lastMessageAt: new Date() }),
+        );
+      } catch (err) {
+        // Two simultaneous first messages (double tap): the other request
+        // created the conversation in the meantime, so use that one.
+        if (!isUniqueViolation(err)) throw err;
+        conv = await this.convRepo.findOneOrFail({ where });
+      }
     }
 
     const message = await this.sendMessage(conv.id, buyerId, body);

@@ -6,6 +6,7 @@ import type { ServerOptions } from "socket.io";
 import type { NextFunction, Request, Response } from "express";
 import helmet from "helmet";
 import { UPLOADS_DIR } from "./common/image-upload.utils";
+import { DatabaseExceptionFilter } from "./common/database-exception.filter";
 
 type CorsOrigin = true | string[];
 
@@ -111,6 +112,8 @@ export function configureApp(app: NestExpressApplication): void {
   const origins = parseCorsOrigins(config.get<string>("CORS_ORIGINS"));
   app.enableCors({ origin: origins, credentials: true });
   app.useWebSocketAdapter(new CorsIoAdapter(app, origins));
+
+  app.useGlobalFilters(new DatabaseExceptionFilter());
 
   app.useGlobalPipes(
     new ValidationPipe({
