@@ -1,4 +1,7 @@
-import { TestApp, auth, connected, receives } from "./helpers";
+import { getRepositoryToken } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
+import { User } from "../src/modules/users/user.entity";
+import { TestApp, auth, connected, nextEvent, receives } from "./helpers";
 
 describe("Auth, authorization & hardening", () => {
   let t: TestApp;
@@ -95,6 +98,121 @@ describe("Auth, authorization & hardening", () => {
       } finally {
         spy.disconnect();
         participant.disconnect();
+      }
+    });
+
+    it("a join sent the moment the socket connects is not lost while the user is still being looked up", async () => {
+      const seller = await t.user("seller");
+      const buyer = await t.user("buyer");
+      const listing = await t.listing(seller);
+      const conv = await t.conversation(buyer, listing.id);
+
+      // A slow database: the lookup takes longer than the client needs to
+      // send its first event after the transport connects.
+      const users: Repository<User> = t.app.get(getRepositoryToken(User));
+      const realFindOne = users.findOne.bind(users);
+      const slow = jest
+        .spyOn(users, "findOne")
+        .mockImplementation(async (...args) => {
+          await new Promise((r) => setTimeout(r, 300));
+          return realFindOne(...args);
+        });
+
+      // Exactly what the web client does: emit without waiting.
+      const s = t.socket(buyer.token);
+      try {
+        expect(
+          await s
+            .timeout(5000)
+            .emitWithAck("joinConversation", { conversationId: conv.id }),
+        ).toEqual({ ok: true });
+        slow.mockRestore();
+
+        const gets = receives(s, "newMessage", 2000);
+        await t
+          .http()
+          .post(`/api/conversations/${conv.id}/messages`)
+          .set(...auth(seller))
+          .send({ body: "Yes, still available" })
+          .expect(201);
+        expect(await gets).toBe(true);
+      } finally {
+        slow.mockRestore();
+        s.disconnect();
+      }
+    });
+
+    it("reading a conversation refreshes the reader's unread badge", async () => {
+      const seller = await t.user("seller");
+      const buyer = await t.user("buyer");
+      const stranger = await t.user("stranger");
+      const listing = await t.listing(seller);
+      const unread = async () =>
+        (
+          await t
+            .http()
+            .get("/api/conversations/unread-count")
+            .set(...auth(seller))
+            .expect(200)
+        ).body.count;
+
+      const s = t.socket(seller.token);
+      try {
+        expect(await connected(s)).toBe(true);
+        let changed = nextEvent(s, "unreadCountChanged");
+        const conv = await t.conversation(buyer, listing.id);
+        await changed;
+        expect(await unread()).toBe(1);
+
+        // Opening the thread marks it read and announces the new count.
+        changed = nextEvent(s, "unreadCountChanged");
+        await t
+          .http()
+          .get(`/api/conversations/${conv.id}/messages`)
+          .set(...auth(seller))
+          .expect(200);
+        await changed;
+        expect(await unread()).toBe(0);
+
+        // A message arriving while the thread is open: mark read without
+        // reloading the thread.
+        changed = nextEvent(s, "unreadCountChanged");
+        await t
+          .http()
+          .post(`/api/conversations/${conv.id}/messages`)
+          .set(...auth(buyer))
+          .send({ body: "Can you do 250?" })
+          .expect(201);
+        await changed;
+        expect(await unread()).toBe(1);
+
+        await t
+          .http()
+          .post(`/api/conversations/${conv.id}/read`)
+          .set(...auth(stranger))
+          .expect(403);
+        expect(await unread()).toBe(1);
+
+        changed = nextEvent(s, "unreadCountChanged");
+        const res = await t
+          .http()
+          .post(`/api/conversations/${conv.id}/read`)
+          .set(...auth(seller))
+          .expect(200);
+        expect(res.body).toEqual({ updated: 1 });
+        await changed;
+        expect(await unread()).toBe(0);
+
+        // Nothing left to mark: no event, no error.
+        const quiet = receives(s, "unreadCountChanged", 400);
+        await t
+          .http()
+          .post(`/api/conversations/${conv.id}/read`)
+          .set(...auth(seller))
+          .expect(200, { updated: 0 });
+        expect(await quiet).toBe(false);
+      } finally {
+        s.disconnect();
       }
     });
 

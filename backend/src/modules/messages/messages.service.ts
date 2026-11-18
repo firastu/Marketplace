@@ -69,25 +69,49 @@ export class MessagesService {
     if (!conv) throw new NotFoundException("Conversation not found");
     this.assertParticipant(conv, userId);
 
-    // Mark unread messages as read
-    await this.msgRepo
-      .createQueryBuilder()
-      .update(Message)
-      .set({ isRead: true })
-      .where(
-        "conversation_id = :conversationId AND sender_id != :userId AND is_read = false",
-        {
-          conversationId,
-          userId,
-        },
-      )
-      .execute();
+    await this.markRead(conversationId, userId);
 
     return this.msgRepo.find({
       where: { conversationId },
       relations: ["sender"],
       order: { createdAt: "ASC" },
     });
+  }
+
+  /**
+   * Marks the other participant's messages as read. Used when a message
+   * arrives while the chat is already open (no need to reload the thread).
+   */
+  async markConversationRead(
+    conversationId: string,
+    userId: string,
+  ): Promise<{ updated: number }> {
+    const conv = await this.convRepo.findOne({
+      where: { id: conversationId },
+    });
+    if (!conv) throw new NotFoundException("Conversation not found");
+    this.assertParticipant(conv, userId);
+    return { updated: await this.markRead(conversationId, userId) };
+  }
+
+  private async markRead(
+    conversationId: string,
+    userId: string,
+  ): Promise<number> {
+    const result = await this.msgRepo
+      .createQueryBuilder()
+      .update(Message)
+      .set({ isRead: true })
+      .where(
+        "conversation_id = :conversationId AND sender_id != :userId AND is_read = false",
+        { conversationId, userId },
+      )
+      .execute();
+    const updated = result.affected ?? 0;
+    // The header badge only refreshes on this event; without it the count
+    // stayed stale after reading until the next page load.
+    if (updated > 0) this.gateway.emitUnreadCountChanged(userId);
+    return updated;
   }
 
   async startConversation(

@@ -4,6 +4,8 @@ import {
   Post,
   Param,
   Body,
+  HttpCode,
+  HttpStatus,
   ParseUUIDPipe,
 } from "@nestjs/common";
 import {
@@ -76,6 +78,20 @@ export class MessagesController {
       dto.listingId,
       dto.body,
     );
+  }
+
+  @Post(":id/read")
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: "Mark the other participant's messages in a conversation as read",
+  })
+  @ApiParam({ name: "id", description: "Conversation UUID" })
+  @ApiResponse({ status: 200, description: "Returns { updated: number }" })
+  markRead(
+    @Param("id", ParseUUIDPipe) id: string,
+    @CurrentUser("id") userId: string,
+  ) {
+    return this.messagesService.markConversationRead(id, userId);
   }
 
   @Throttle(WRITE_THROTTLE)

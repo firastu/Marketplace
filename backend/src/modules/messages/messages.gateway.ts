@@ -1,8 +1,7 @@
 import {
   WebSocketGateway,
   WebSocketServer,
-  OnGatewayConnection,
-  OnGatewayDisconnect,
+  OnGatewayInit,
   SubscribeMessage,
   ConnectedSocket,
   MessageBody,
@@ -10,7 +9,7 @@ import {
 import { Logger } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
-import { Server, Socket } from "socket.io";
+import { Namespace, Socket } from "socket.io";
 import { JwtService } from "@nestjs/jwt";
 import { Message } from "./message.entity";
 import { Conversation } from "./conversation.entity";
@@ -26,13 +25,12 @@ export type JoinResult = { ok: true } | { ok: false; error: string };
 // CORS for Socket.IO is configured in main.ts (CorsIoAdapter) from the same
 // CORS_ORIGINS allowlist as the REST API.
 @WebSocketGateway({ namespace: "/chat" })
-export class MessagesGateway
-  implements OnGatewayConnection, OnGatewayDisconnect
-{
+export class MessagesGateway implements OnGatewayInit {
   private readonly logger = new Logger(MessagesGateway.name);
 
+  // The gateway is bound to the /chat namespace, so this is a Namespace.
   @WebSocketServer()
-  server: Server;
+  server: Namespace;
 
   constructor(
     private readonly jwtService: JwtService,
@@ -44,37 +42,36 @@ export class MessagesGateway
 
   /* ── connection lifecycle ───────────────────────────── */
 
-  async handleConnection(client: AuthedSocket) {
-    try {
-      const token =
-        (client.handshake.auth?.token as string) ||
-        (client.handshake.headers?.authorization as string)?.replace(
-          "Bearer ",
-          "",
-        );
-      if (!token) {
-        client.disconnect(true);
-        return;
-      }
-
-      const payload = this.jwtService.verify<{ sub: string }>(token);
-      const user = await this.usersRepo.findOne({
-        where: { id: payload.sub },
-      });
-      if (!user || !user.isActive) {
-        client.disconnect(true);
-        return;
-      }
-
-      client.data.userId = user.id;
-      await client.join(`user:${user.id}`);
-    } catch {
-      client.disconnect(true);
-    }
+  /**
+   * Authenticates in a namespace middleware, i.e. before the connection is
+   * established. Doing it in handleConnection() was a race: Socket.IO
+   * reports "connected" to the client first, and the client's buffered
+   * joinConversation could be handled while the user lookup was still
+   * running — answered "Not authenticated", leaving the chat without live
+   * updates. A rejected client now gets a connect_error instead.
+   */
+  afterInit(server: Namespace) {
+    server.use((socket, next) => {
+      this.authenticate(socket as AuthedSocket).then(
+        () => next(),
+        () => next(new Error("Unauthorized")),
+      );
+    });
   }
 
-  handleDisconnect() {
-    // Socket.IO removes the socket from its rooms automatically.
+  private async authenticate(client: AuthedSocket): Promise<void> {
+    const header = client.handshake.headers?.authorization;
+    const token =
+      (client.handshake.auth?.token as string | undefined) ||
+      (typeof header === "string" ? header.replace(/^Bearer /i, "") : "");
+    if (!token || typeof token !== "string") throw new Error("No token");
+
+    const payload = this.jwtService.verify<{ sub: string }>(token);
+    const user = await this.usersRepo.findOne({ where: { id: payload.sub } });
+    if (!user || !user.isActive) throw new Error("Account unavailable");
+
+    client.data.userId = user.id;
+    await client.join(`user:${user.id}`);
   }
 
   /* ── client events ──────────────────────────────────── */
@@ -142,5 +139,10 @@ export class MessagesGateway
     });
 
     this.server.to(`user:${recipientUserId}`).emit("unreadCountChanged");
+  }
+
+  /** Tell a user's open tabs to refresh their unread badge. */
+  emitUnreadCountChanged(userId: string) {
+    this.server.to(`user:${userId}`).emit("unreadCountChanged");
   }
 }
