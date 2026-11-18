@@ -230,6 +230,7 @@ Only active categories and subcategories are returned, ordered by `sortOrder`.
 **Create** body: `{ title, description, price, categoryId, condition?, currency?, locationCity?, locationZip?, isNegotiable?, isShippingAvailable? }`
 
 - `currency`: `SYP` (default) or `USD`. `price` 0 means free.
+- Search (`q`) is Arabic-aware: every word must appear in the title or description (any order), and spelling variants match — أ/إ/آ/ا, ة/ه, ى/ي, ؤ/و, ئ/ي, diacritics and tatweel are ignored, ٠-٩ equals 0-9, Latin is case-insensitive. Implemented by `normalize_search_text()` and the indexed `listings.search_text` column (migration 010, needs the `pg_trgm` extension). `locationCity` is normalised the same way.
 - `GET /listings` filters: `q`, `categoryId` (includes subcategories), `userId` (one seller's listings), `currency`, `minPrice`, `maxPrice`, `condition`, `locationCity`, `sortBy`.
 - Seller objects (`listing.user`, and users anywhere else in responses) only contain public fields: `id, username, displayName, avatarUrl, bio, isVerified, createdAt`. Email and phone are only returned to the account owner (`/auth/me`, login, register).
 

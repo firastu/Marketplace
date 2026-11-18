@@ -1,6 +1,6 @@
 -- ============================================================
 -- Marketplace App: Full Schema (Phase 1 + Phase 2)
--- Generated from individual migration files (001–009)
+-- Generated from individual migration files (001–010)
 -- ============================================================
 
 -- Extensions
@@ -198,3 +198,38 @@ CREATE INDEX idx_reviews_reviewer ON reviews (reviewer_id);
 CREATE INDEX idx_reviews_reviewed ON reviews (reviewed_user_id);
 CREATE INDEX idx_reviews_listing ON reviews (listing_id);
 CREATE INDEX idx_reviews_rating ON reviews (rating);
+
+-- ============================================================
+-- Arabic-aware search (migration 010)
+-- ============================================================
+
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
+CREATE OR REPLACE FUNCTION normalize_search_text(input TEXT)
+RETURNS TEXT
+LANGUAGE sql
+IMMUTABLE
+PARALLEL SAFE
+RETURNS NULL ON NULL INPUT
+AS $$
+    SELECT btrim(regexp_replace(
+        regexp_replace(
+            -- hamza/alef forms, alef maqsura, ta marbuta, waw/ya hamza,
+            -- Arabic-Indic and extended Arabic-Indic digits
+            translate(lower(input), 'أإآٱىةؤئ٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹', 'اااايهوي01234567890123456789'),
+            -- diacritics (tashkeel), superscript alef, tatweel,
+            -- zero-width and direction marks
+            '[\u064B-\u065F\u0670\u0640\u200B-\u200F]', '', 'g'
+        ),
+        '\s+', ' ', 'g'
+    ))
+$$;
+
+ALTER TABLE listings
+    ADD COLUMN search_text TEXT
+    GENERATED ALWAYS AS (
+        normalize_search_text(coalesce(title, '') || ' ' || coalesce(description, ''))
+    ) STORED;
+
+CREATE INDEX idx_listings_search_trgm
+    ON listings USING gin (search_text gin_trgm_ops);
